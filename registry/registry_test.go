@@ -3,6 +3,7 @@ package registry_test
 import (
 	"fmt"
 
+	"code.cloudfoundry.org/gorouter/clients"
 	. "code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
@@ -37,7 +38,7 @@ var _ = Describe("RouteRegistry", func() {
 
 		reporter = new(fakes.FakeRouteRegistryReporter)
 
-		r = NewRouteRegistry(logger, configObj, reporter)
+		r = NewRouteRegistry(logger, configObj, reporter, clients.NewClients())
 		modTag = models.ModificationTag{}
 		fooEndpoint = route.NewEndpoint("12345", "192.168.1.1", 1234,
 			"id1", "0",
@@ -708,7 +709,7 @@ var _ = Describe("RouteRegistry", func() {
 				configObj.DropletStaleThreshold = 45 * time.Millisecond
 				reporter = new(fakes.FakeRouteRegistryReporter)
 
-				r = NewRouteRegistry(logger, configObj, reporter)
+				r = NewRouteRegistry(logger, configObj, reporter, clients.NewClients())
 			})
 
 			It("sends route metrics to the reporter", func() {
@@ -736,7 +737,7 @@ var _ = Describe("RouteRegistry", func() {
 				configObj.DropletStaleThreshold = 100 * time.Millisecond
 				reporter = new(fakes.FakeRouteRegistryReporter)
 
-				r = NewRouteRegistry(logger, configObj, reporter)
+				r = NewRouteRegistry(logger, configObj, reporter, clients.NewClients())
 			})
 
 			It("does not log the route info for fresh routes when pruning", func() {

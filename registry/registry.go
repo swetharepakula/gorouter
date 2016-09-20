@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/registry/container"
@@ -36,7 +37,8 @@ const (
 type RouteRegistry struct {
 	sync.RWMutex
 
-	logger lager.Logger
+	logger    lager.Logger
+	clientMap clients.Clients
 
 	// Access to the Trie datastructure should be governed by the RWMutex of RouteRegistry
 	byUri *container.Trie
@@ -54,7 +56,7 @@ type RouteRegistry struct {
 	timeOfLastUpdate time.Time
 }
 
-func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.RouteRegistryReporter) *RouteRegistry {
+func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.RouteRegistryReporter, clientMap clients.Clients) *RouteRegistry {
 	r := &RouteRegistry{}
 	r.logger = logger
 	r.byUri = container.NewTrie()
@@ -64,6 +66,7 @@ func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.R
 	r.suspendPruning = func() bool { return false }
 
 	r.reporter = reporter
+	r.clientMap = clientMap
 	return r
 }
 
@@ -236,8 +239,10 @@ func (r *RouteRegistry) pruneStaleDroplets() {
 		r.pruningStatus = CONNECTED
 	}
 
+	r.logger.Info("client-map", lager.Data{"clients": r.clientMap})
+
 	r.byUri.EachNodeWithPool(func(t *container.Trie) {
-		endpoints := t.Pool.PruneEndpoints(r.dropletStaleThreshold)
+		endpoints := t.Pool.PruneEndpointsWithClient(r.dropletStaleThreshold, r.clientMap)
 		t.Snip()
 		if len(endpoints) > 0 {
 			addresses := []string{}

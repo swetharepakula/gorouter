@@ -9,6 +9,7 @@ import (
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/debugserver"
 	"code.cloudfoundry.org/gorouter/access_log"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/common/schema"
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/config"
@@ -91,9 +92,10 @@ func main() {
 	}
 
 	logger.Info("Successfully-connected-to-nats", lager.Data{"host": natsHost})
+	clientMap := clients.NewClients()
 
 	metricsReporter := metrics.NewMetricsReporter()
-	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c, metricsReporter)
+	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c, metricsReporter, clientMap)
 	if c.SuspendPruningIfNatsUnavailable {
 		registry.SuspendPruning(func() bool { return !(natsClient.Status() == nats.CONNECTED) })
 	}
@@ -117,7 +119,7 @@ func main() {
 
 	proxy := buildProxy(logger.Session("proxy"), c, registry, accessLogger, compositeReporter, crypto, cryptoPrev)
 
-	router, err := router.NewRouter(logger.Session("router"), c, proxy, natsClient, registry, varz, logCounter, nil)
+	router, err := router.NewRouter(logger.Session("router"), c, proxy, natsClient, registry, varz, logCounter, clientMap, nil)
 	if err != nil {
 		logger.Fatal("initialize-router-error", err)
 	}

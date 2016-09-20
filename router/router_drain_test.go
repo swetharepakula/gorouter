@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/gorouter/access_log"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/common/schema"
 	cfg "code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/metrics/reporter/fakes"
@@ -202,7 +203,7 @@ var _ = Describe("Router", func() {
 		config.EndpointTimeout = 5 * time.Second
 
 		mbusClient = natsRunner.MessageBus
-		registry = rregistry.NewRouteRegistry(logger, config, new(fakes.FakeRouteRegistryReporter))
+		registry = rregistry.NewRouteRegistry(logger, config, new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 		varz = vvarz.NewVarz(registry)
 		logcounter := schema.NewLogCounter()
 		proxy := proxy.NewProxy(proxy.ProxyArgs{
@@ -217,7 +218,7 @@ var _ = Describe("Router", func() {
 		})
 
 		errChan := make(chan error, 2)
-		router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, errChan)
+		router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, clients.NewClients(), errChan)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -457,7 +458,7 @@ var _ = Describe("Router", func() {
 
 				errChan = make(chan error, 2)
 				var err error
-				router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, errChan)
+				router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, clients.NewClients(), errChan)
 				Expect(err).ToNot(HaveOccurred())
 				runRouter(router)
 			})

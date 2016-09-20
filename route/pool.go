@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/routing-api/models"
 )
 
@@ -15,7 +16,7 @@ var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 type Endpoint struct {
 	ApplicationId        string
 	addr                 string
-	Tags                 map[string]string
+	Tags                 map[string]string // "client": "route-emitter"
 	PrivateInstanceId    string
 	staleThreshold       time.Duration
 	RouteServiceUrl      string
@@ -132,6 +133,43 @@ func (p *Pool) RouteServiceUrl() string {
 	} else {
 		return ""
 	}
+}
+
+func (p *Pool) PruneEndpointsWithClient(defaultThreshold time.Duration, clientMap clients.Clients) []*Endpoint {
+	p.lock.Lock()
+
+	last := len(p.endpoints)
+	now := time.Now()
+
+	prunedEndpoints := []*Endpoint{}
+
+	for i := 0; i < last; {
+		e := p.endpoints[i]
+
+		fresh, err := clientMap.IsFresh(e.endpoint.Tags["client"])
+		if !fresh && err == nil {
+			continue
+		}
+		if err != nil {
+			fmt.Printf("client-freshness-error: %s", err.Error())
+		}
+
+		staleTime := now.Add(-defaultThreshold)
+		if e.endpoint.staleThreshold > 0 && e.endpoint.staleThreshold < defaultThreshold {
+			staleTime = now.Add(-e.endpoint.staleThreshold)
+		}
+
+		if e.updated.Before(staleTime) {
+			p.removeEndpoint(e)
+			prunedEndpoints = append(prunedEndpoints, e.endpoint)
+			last--
+		} else {
+			i++
+		}
+	}
+
+	p.lock.Unlock()
+	return prunedEndpoints
 }
 
 func (p *Pool) PruneEndpoints(defaultThreshold time.Duration) []*Endpoint {

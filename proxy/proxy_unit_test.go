@@ -7,6 +7,7 @@ import (
 	"time"
 
 	fakelogger "code.cloudfoundry.org/gorouter/access_log/fakes"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/metrics/reporter/fakes"
 	"code.cloudfoundry.org/gorouter/proxy"
 	"code.cloudfoundry.org/gorouter/proxy/test_helpers"
@@ -36,7 +37,7 @@ var _ = Describe("Proxy Unit tests", func() {
 			fakeAccessLogger = &fakelogger.FakeAccessLogger{}
 
 			logger = lagertest.NewTestLogger("test")
-			r = registry.NewRouteRegistry(logger, conf, new(fakes.FakeRouteRegistryReporter))
+			r = registry.NewRouteRegistry(logger, conf, new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 
 			proxyObj = proxy.NewProxy(proxy.ProxyArgs{
 				EndpointTimeout:      conf.EndpointTimeout,

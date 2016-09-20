@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"code.cloudfoundry.org/gorouter/access_log"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/proxy"
@@ -59,7 +60,7 @@ var _ = BeforeEach(func() {
 
 var _ = JustBeforeEach(func() {
 	var err error
-	r = registry.NewRouteRegistry(logger, conf, new(fakes.FakeRouteRegistryReporter))
+	r = registry.NewRouteRegistry(logger, conf, new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 
 	fakeEmitter := fake.NewFakeEventEmitter("fake")
 	dropsonde.InitializeWithEmitter(fakeEmitter)

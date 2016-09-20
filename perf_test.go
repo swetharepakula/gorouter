@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"code.cloudfoundry.org/gorouter/access_log"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/proxy"
 	"code.cloudfoundry.org/gorouter/registry"
@@ -22,7 +23,7 @@ var _ = Describe("AccessLogRecord", func() {
 	Measure("Register", func(b Benchmarker) {
 		logger := lagertest.NewTestLogger("test")
 		c := config.DefaultConfig()
-		r := registry.NewRouteRegistry(logger, c, new(fakes.FakeRouteRegistryReporter))
+		r := registry.NewRouteRegistry(logger, c, new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 
 		accesslog, err := access_log.CreateRunningAccessLogger(logger, c)
 		Expect(err).ToNot(HaveOccurred())

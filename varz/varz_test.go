@@ -1,6 +1,7 @@
 package varz_test
 
 import (
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/metrics/reporter/fakes"
 	"code.cloudfoundry.org/gorouter/registry"
@@ -25,7 +26,7 @@ var _ = Describe("Varz", func() {
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
-		Registry = registry.NewRouteRegistry(logger, config.DefaultConfig(), new(fakes.FakeRouteRegistryReporter))
+		Registry = registry.NewRouteRegistry(logger, config.DefaultConfig(), new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 		Varz = NewVarz(Registry)
 	})
 

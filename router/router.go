@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/common"
 	"code.cloudfoundry.org/gorouter/common/health"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
@@ -48,6 +49,7 @@ var noDeadline = time.Time{}
 
 type Router struct {
 	config     *config.Config
+	clients    clients.Clients
 	proxy      proxy.Proxy
 	mbusClient *nats.Conn
 	registry   *registry.RouteRegistry
@@ -71,6 +73,11 @@ type Router struct {
 	errChan chan error
 }
 
+type ClientMessage struct {
+	Name string `json:"name"`
+	TTL  int    `json:"ttl,omitempty"`
+}
+
 type RegistryMessage struct {
 	Host                    string            `json:"host"`
 	Port                    uint16            `json:"port"`
@@ -83,8 +90,17 @@ type RegistryMessage struct {
 	PrivateInstanceIndex    string            `json:"private_instance_index"`
 }
 
-func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClient *nats.Conn, r *registry.RouteRegistry,
-	v varz.Varz, logCounter *schema.LogCounter, errChan chan error) (*Router, error) {
+func NewRouter(
+	logger lager.Logger,
+	cfg *config.Config,
+	p proxy.Proxy,
+	mbusClient *nats.Conn,
+	r *registry.RouteRegistry,
+	v varz.Varz,
+	logCounter *schema.LogCounter,
+	clients clients.Clients,
+	errChan chan error,
+) (*Router, error) {
 
 	var host string
 	if cfg.Status.Port != 0 {
@@ -121,6 +137,7 @@ func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClien
 
 	router := &Router{
 		config:       cfg,
+		clients:      clients,
 		proxy:        p,
 		mbusClient:   mbusClient,
 		registry:     r,
@@ -435,6 +452,28 @@ func (r *Router) RegisterComponent() {
 	r.component.Register(r.mbusClient)
 }
 
+func (r *Router) SubscribeClientShutdown() {
+	r.subscribeClient("router.client.shutdown", func(heartbeat *ClientMessage) {
+		// Received shutdown, remove client from map
+		client := clients.Client{
+			Name: heartbeat.Name,
+			TTL:  heartbeat.TTL,
+		}
+		r.clients.Remove(client)
+	})
+}
+
+func (r *Router) SubscribeClientHeartbeat() {
+	r.subscribeClient("router.client.heartbeat", func(heartbeat *ClientMessage) {
+		// Received heartbeat, add client to map and save freshness
+		client := clients.Client{
+			Name: heartbeat.Name,
+			TTL:  heartbeat.TTL,
+		}
+		r.clients.Upsert(client)
+	})
+}
+
 func (r *Router) SubscribeRegister() {
 	r.subscribeRegistry("router.register", func(registryMessage *RegistryMessage) {
 		for _, uri := range registryMessage.Uris {
@@ -578,6 +617,28 @@ func (r *Router) greetMessage() ([]byte, error) {
 		PruneThresholdInSeconds:          int(r.config.DropletStaleThreshold.Seconds()),
 	}
 	return json.Marshal(d)
+}
+
+func (r *Router) subscribeClient(subject string, successCallback func(*ClientMessage)) {
+	callback := func(message *nats.Msg) {
+		payload := message.Data
+
+		var msg ClientMessage
+
+		err := json.Unmarshal(payload, &msg)
+		if err != nil {
+			logMessage := fmt.Sprintf("%s: Error unmarshalling JSON (%d; %s): %s", subject, len(payload), payload, err)
+			r.logger.Info(logMessage, lager.Data{"payload": string(payload)})
+			return
+		}
+
+		successCallback(&msg)
+	}
+
+	_, err := r.mbusClient.Subscribe(subject, callback)
+	if err != nil {
+		r.logger.Error(fmt.Sprintf("Error subscribing to %s ", subject), err)
+	}
 }
 
 func (r *Router) subscribeRegistry(subject string, successCallback func(*RegistryMessage)) {

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"code.cloudfoundry.org/gorouter/access_log"
+	"code.cloudfoundry.org/gorouter/clients"
 	"code.cloudfoundry.org/gorouter/common"
 	"code.cloudfoundry.org/gorouter/common/health"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
@@ -91,7 +92,7 @@ var _ = Describe("Router", func() {
 
 		mbusClient = natsRunner.MessageBus
 		logger = lagertest.NewTestLogger("router-test")
-		registry = rregistry.NewRouteRegistry(logger, config, new(fakes.FakeRouteRegistryReporter))
+		registry = rregistry.NewRouteRegistry(logger, config, new(fakes.FakeRouteRegistryReporter), clients.NewClients())
 		varz = vvarz.NewVarz(registry)
 		proxy := proxy.NewProxy(proxy.ProxyArgs{
 			EndpointTimeout:      config.EndpointTimeout,
@@ -104,7 +105,7 @@ var _ = Describe("Router", func() {
 			HealthCheckUserAgent: "HTTP-Monitor/1.1",
 		})
 		logcounter := schema.NewLogCounter()
-		router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, nil)
+		router, err = NewRouter(logger, config, proxy, mbusClient, registry, varz, logcounter, clients.NewClients(), nil)
 
 		Expect(err).ToNot(HaveOccurred())
 
