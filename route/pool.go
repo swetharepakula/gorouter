@@ -148,10 +148,11 @@ func (p *Pool) PruneEndpointsWithClient(defaultThreshold time.Duration, clientMa
 
 		fresh, err := clientMap.IsFresh(e.endpoint.Tags["client"])
 		if !fresh && err == nil {
+			i++
 			continue
 		}
 		if err != nil {
-			fmt.Printf("client-freshness-error: %s", err.Error())
+			fmt.Printf("client-freshness-error: %s\n", err.Error())
 		}
 
 		staleTime := now.Add(-defaultThreshold)

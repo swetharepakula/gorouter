@@ -183,6 +183,9 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	r.HandleGreetings()
 	r.SubscribeUnregister()
 
+	r.SubscribeClientHeartbeat()
+	r.SubscribeClientShutdown()
+
 	// Kickstart sending start messages
 	r.SendStartMessage()
 
@@ -455,6 +458,7 @@ func (r *Router) RegisterComponent() {
 func (r *Router) SubscribeClientShutdown() {
 	r.subscribeClient("router.client.shutdown", func(heartbeat *ClientMessage) {
 		// Received shutdown, remove client from map
+		r.logger.Info("received-client-shutdown")
 		client := clients.Client{
 			Name: heartbeat.Name,
 			TTL:  heartbeat.TTL,
@@ -466,6 +470,7 @@ func (r *Router) SubscribeClientShutdown() {
 func (r *Router) SubscribeClientHeartbeat() {
 	r.subscribeClient("router.client.heartbeat", func(heartbeat *ClientMessage) {
 		// Received heartbeat, add client to map and save freshness
+		r.logger.Info("received-client-heartbeat", lager.Data{"clients": r.clients})
 		client := clients.Client{
 			Name: heartbeat.Name,
 			TTL:  heartbeat.TTL,
