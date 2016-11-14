@@ -95,13 +95,18 @@ func main() {
 	logger.Info("Successfully-connected-to-nats", lager.Data{"host": natsHost})
 
 	metricsReporter := metrics.NewMetricsReporter()
-	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c, metricsReporter)
+	metricsProcessor, err := metrics.NewMetricsProcessor(metricsReporter, c.NumMetricsWorkers)
+	if err != nil {
+		logger.Fatal("error-creating-metrics-processor", err)
+	}
+
+	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c, metricsProcessor)
 	if c.SuspendPruningIfNatsUnavailable {
 		registry.SuspendPruning(func() bool { return !(natsClient.Status() == nats.CONNECTED) })
 	}
 
 	varz := rvarz.NewVarz(registry)
-	compositeReporter := metrics.NewCompositeReporter(varz, metricsReporter)
+	compositeReporter := metrics.NewCompositeReporter(varz, metricsProcessor)
 
 	accessLogger, err := access_log.CreateRunningAccessLogger(logger.Session("access-log"), c)
 	if err != nil {

@@ -142,6 +142,8 @@ type Config struct {
 	TokenFetcherRetryInterval                 time.Duration `yaml:"token_fetcher_retry_interval"`
 	TokenFetcherExpirationBufferTimeInSeconds int64         `yaml:"token_fetcher_expiration_buffer_time"`
 
+	NumMetricsWorkers int `yaml:"num_metrics_workers"`
+
 	PidFile     string `yaml:"pid_file"`
 	LoadBalance string `yaml:"balancing_algorithm"`
 }
@@ -169,6 +171,7 @@ var defaultConfig = Config{
 	TokenFetcherMaxRetries:                    3,
 	TokenFetcherRetryInterval:                 5 * time.Second,
 	TokenFetcherExpirationBufferTimeInSeconds: 30,
+	NumMetricsWorkers:                         200,
 
 	HealthCheckUserAgent: "HTTP-Monitor/1.1",
 	LoadBalance:          LOAD_BALANCE_RR,
