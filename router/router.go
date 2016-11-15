@@ -601,14 +601,12 @@ func (r *Router) subscribeRegistry(subject string, successCallback func(*Registr
 
 		err := json.Unmarshal(payload, &msg)
 		if err != nil {
-			logMessage := fmt.Sprintf("%s: Error unmarshalling JSON (%d; %s): %s", subject, len(payload), payload, err)
-			r.logger.Info(logMessage, lager.Data{"payload": string(payload)})
+			r.logger.Info("Error unmarshalling JSON", lager.Data{"payload": string(payload), "error": err.Error(), "subject": subject})
 			return
 		}
 
 		if !msg.ValidateMessage() {
-			logMessage := fmt.Sprintf("%s: Unable to validate message. route_service_url must be https", subject)
-			r.logger.Info(logMessage, lager.Data{"message": msg})
+			r.logger.Info("%s: Unable to validate message. route_service_url must be https", lager.Data{"message": msg, "subject": subject})
 			return
 		}
 
@@ -617,7 +615,7 @@ func (r *Router) subscribeRegistry(subject string, successCallback func(*Registr
 
 	_, err := r.mbusClient.Subscribe(subject, callback)
 	if err != nil {
-		r.logger.Error(fmt.Sprintf("Error subscribing to %s ", subject), err)
+		r.logger.Error("Error during subscription", err, lager.Data{"subject": subject})
 	}
 }
 

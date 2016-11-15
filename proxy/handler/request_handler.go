@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -156,8 +157,10 @@ func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {
 }
 
 func (h *RequestHandler) writeStatus(code int, message string) {
-	body := fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message)
-
+	var buffer bytes.Buffer
+	//TODO: error handle
+	buffer.WriteString(strconv.Itoa(code) + " " + http.StatusText(code) + ":" + message)
+	body := buffer.String()
 	h.logger.Info("status", lager.Data{"body": body})
 	h.logrecord.StatusCode = code
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"io"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,22 +17,28 @@ import (
 type accessLog struct {
 	accessLogger      access_log.AccessLogger
 	extraHeadersToLog *[]string
+	pool              sync.Pool
 }
 
 func NewAccessLog(accessLogger access_log.AccessLogger, extraHeadersToLog *[]string) negroni.Handler {
 	return &accessLog{
 		accessLogger:      accessLogger,
 		extraHeadersToLog: extraHeadersToLog,
+		pool: sync.Pool{
+			New: func() interface{} {
+				return &schema.AccessLogRecord{}
+			},
+		},
 	}
 }
 
 func (a *accessLog) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	proxyWriter := rw.(utils.ProxyResponseWriter)
-	alr := &schema.AccessLogRecord{
-		Request:           r,
-		StartedAt:         time.Now(),
-		ExtraHeadersToLog: a.extraHeadersToLog,
-	}
+	alr := a.pool.Get().(*schema.AccessLogRecord)
+	defer a.pool.Put(alr)
+	alr.Request = r
+	alr.StartedAt = time.Now()
+	alr.ExtraHeadersToLog = a.extraHeadersToLog
 
 	requestBodyCounter := &countingReadCloser{delegate: r.Body}
 	r.Body = requestBodyCounter

@@ -2,7 +2,6 @@ package schema
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -46,13 +45,12 @@ func (r *AccessLogRecord) getRecord() string {
 	if len(r.record) == 0 {
 		r.record = r.makeRecord()
 	}
-
 	return r.record
 }
 
 func (r *AccessLogRecord) makeRecord() string {
 	statusCode, responseTime, appId, extraHeaders, appIndex, destIPandPort := "-", "-", "-", "", "-", `"-"`
-
+	var buffer bytes.Buffer
 	if r.StatusCode != 0 {
 		statusCode = strconv.Itoa(r.StatusCode)
 	}
@@ -75,31 +73,49 @@ func (r *AccessLogRecord) makeRecord() string {
 		extraHeaders = r.ExtraHeaders()
 	}
 
-	return fmt.Sprintf(`%s - [%s] "%s %s %s" %s %d %d %q %q %s %s x_forwarded_for:%q x_forwarded_proto:%q vcap_request_id:%s response_time:%s app_id:%s app_index:%s%s`+"\n",
-		r.Request.Host,
-		r.FormatStartedAt(),
-		r.Request.Method,
-		r.Request.URL.RequestURI(),
-		r.Request.Proto,
-		statusCode,
-		r.RequestBytesReceived,
-		r.BodyBytesSent,
-		r.FormatRequestHeader("Referer"),
-		r.FormatRequestHeader("User-Agent"),
-		r.Request.RemoteAddr,
-		destIPandPort,
-		r.FormatRequestHeader("X-Forwarded-For"),
-		r.FormatRequestHeader("X-Forwarded-Proto"),
-		r.FormatRequestHeader("X-Vcap-Request-Id"),
-		responseTime,
-		appId,
-		appIndex,
-		extraHeaders)
+	buffer.WriteString(
+		r.Request.Host + " - " +
+			"[" + r.FormatStartedAt() + "]" + " " +
+			"\"" + r.Request.Method + " " + r.Request.URL.RequestURI() + " " + r.Request.Proto + "\" " +
+			statusCode + " " +
+			strconv.Itoa(r.RequestBytesReceived) + " " +
+			strconv.Itoa(r.BodyBytesSent) + " " +
+			"\"" + r.FormatRequestHeader("Referer") + "\"" + " " +
+			"\"" + r.FormatRequestHeader("User-Agent") + "\"" + " " +
+			r.Request.RemoteAddr + " " +
+			destIPandPort +
+			" x_forwarded_for:\"" + r.FormatRequestHeader("X-Forwarded-For") + "\"" +
+			" x_forwarded_proto:\"" + r.FormatRequestHeader("X-Forwarded-Proto") + "\"" +
+			" vcap_request_id:" + r.FormatRequestHeader("X-Vcap-Request-Id") +
+			" response_time:" + responseTime +
+			" app_id:" + appId +
+			" app_index:" + appIndex +
+			extraHeaders + "\n")
+	return buffer.String()
+	// return fmt.Sprintf(`%s - [%s] "%s %s %s" %s %d %d %q %q %s %s x_forwarded_for:%q x_forwarded_proto:%q vcap_request_id:%s response_time:%s app_id:%s app_index:%s%s`+"\n",
+	// 	r.Request.Host,
+	// 	r.FormatStartedAt(),
+	// 	r.Request.Method,
+	// 	r.Request.URL.RequestURI(),
+	// 	r.Request.Proto,
+	// 	statusCode,
+	// 	r.RequestBytesReceived,
+	// 	r.BodyBytesSent,
+	// 	r.FormatRequestHeader("Referer"),
+	// 	r.FormatRequestHeader("User-Agent"),
+	// 	r.Request.RemoteAddr,
+	// 	destIPandPort,
+	// 	r.FormatRequestHeader("X-Forwarded-For"),
+	// 	r.FormatRequestHeader("X-Forwarded-Proto"),
+	// 	r.FormatRequestHeader("X-Vcap-Request-Id"),
+	// 	responseTime,
+	// 	appId,
+	// 	appIndex,
+	// 	extraHeaders)
 }
 
 func (r *AccessLogRecord) WriteTo(w io.Writer) (int64, error) {
-	recordBuffer := bytes.NewBufferString(r.getRecord())
-	return recordBuffer.WriteTo(w)
+	return bytes.NewBufferString(r.getRecord()).WriteTo(w)
 }
 
 func (r *AccessLogRecord) ApplicationId() string {
