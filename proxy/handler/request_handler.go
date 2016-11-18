@@ -126,16 +126,9 @@ func (h *RequestHandler) HandleUnsupportedRouteService() {
 	h.response.Done()
 }
 
-func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
-	h.logger.Info("handling-tcp-request", lager.Data{"Upgrade": "tcp"})
-
-	h.logrecord.StatusCode = http.StatusSwitchingProtocols
-
-	err := h.serveTcp(iter)
-	if err != nil {
-		h.logger.Error("tcp-request-failed", err)
-		h.writeStatus(http.StatusBadRequest, "TCP forwarding to endpoint failed.")
-	}
+func (h *RequestHandler) HandleTcpFailure(err error) {
+	h.logger.Error("tcp-request-failed", err)
+	h.writeStatus(http.StatusBadRequest, "TCP forwarding to endpoint failed.")
 }
 
 func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {

@@ -1,4 +1,4 @@
-package round_tripper_test
+package round_trippers_test
 
 import (
 	. "github.com/onsi/ginkgo"

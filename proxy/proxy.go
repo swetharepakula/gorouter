@@ -11,13 +11,12 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/gorouter/access_log"
-	"code.cloudfoundry.org/gorouter/access_log/schema"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/handlers"
 	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/proxy/handler"
-	"code.cloudfoundry.org/gorouter/proxy/round_tripper"
+	"code.cloudfoundry.org/gorouter/proxy/round_trippers"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/gorouter/route_service"
@@ -138,6 +137,11 @@ func NewProxy(args ProxyArgs) Proxy {
 	n.Use(handlers.NewAccessLog(args.AccessLogger, args.ExtraHeadersToLog))
 	n.Use(handlers.NewHealthcheck(args.HealthCheckUserAgent, p.heartbeatOK, args.Logger))
 	n.Use(handlers.NewZipkin(args.EnableZipkin, args.ExtraHeadersToLog, args.Logger))
+	// Add reqeust handler handler
+	// Add protocol unsupported handler
+	// Add sticky session handler
+	// Add endpoint interator handler handler
+	// Add tcp handler
 
 	n.UseHandler(p)
 	handlers := &proxyHandler{
@@ -190,24 +194,20 @@ func (p *proxy) lookup(request *http.Request) *route.Pool {
 }
 
 func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
-	proxyWriter := responseWriter.(utils.ProxyResponseWriter)
-
-	alr := proxyWriter.Context().Value("AccessLogRecord")
-	if alr == nil {
-		p.logger.Error("AccessLogRecord not set on context", errors.New("failed-to-access-LogRecord"))
-	}
-	accessLog := alr.(*schema.AccessLogRecord)
-
-	handler := handler.NewRequestHandler(request, proxyWriter, p.reporter, accessLog, p.logger)
-
-	if !isProtocolSupported(request) {
-		handler.HandleUnsupportedProtocol()
-		return
-	}
+	var roundTripper http.RoundTripper
+	transport := dropsonde.InstrumentedRoundTripper(p.transport)
+	handler := handlers.RetrieveRequestHandler(responseWriter)
 
 	routePool := p.lookup(request)
 	if routePool == nil {
 		handler.HandleMissingRoute()
+		return
+	}
+
+	routeServiceUrl := routePool.RouteServiceUrl()
+	// Attempted to use a route service when it is not supported
+	if routeServiceUrl != "" && !p.routeServiceConfig.RouteServiceEnabled() {
+		handler.HandleUnsupportedRouteService()
 		return
 	}
 
@@ -221,58 +221,6 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 				p.reporter.CaptureRoutingRequest(endpoint, request)
 			}
 		},
-	}
-
-	if isTcpUpgrade(request) {
-		handler.HandleTcpRequest(iter)
-		return
-	}
-
-	if isWebSocketUpgrade(request) {
-		handler.HandleWebSocketRequest(iter)
-		return
-	}
-
-	backend := true
-
-	routeServiceUrl := routePool.RouteServiceUrl()
-	// Attempted to use a route service when it is not supported
-	if routeServiceUrl != "" && !p.routeServiceConfig.RouteServiceEnabled() {
-		handler.HandleUnsupportedRouteService()
-		return
-	}
-
-	var routeServiceArgs route_service.RouteServiceArgs
-	if routeServiceUrl != "" {
-		rsSignature := request.Header.Get(route_service.RouteServiceSignature)
-
-		var recommendedScheme string
-
-		if p.routeServiceRecommendHttps {
-			recommendedScheme = "https"
-		} else {
-			recommendedScheme = "http"
-		}
-
-		forwardedUrlRaw := recommendedScheme + "://" + hostWithoutPort(request) + request.RequestURI
-		if hasBeenToRouteService(routeServiceUrl, rsSignature) {
-			// A request from a route service destined for a backend instances
-			routeServiceArgs.UrlString = routeServiceUrl
-			err := p.routeServiceConfig.ValidateSignature(&request.Header, forwardedUrlRaw)
-			if err != nil {
-				handler.HandleBadSignature(err)
-				return
-			}
-		} else {
-			var err error
-			// should not hardcode http, will be addressed by #100982038
-			routeServiceArgs, err = buildRouteServiceArgs(p.routeServiceConfig, routeServiceUrl, forwardedUrlRaw)
-			backend = false
-			if err != nil {
-				handler.HandleRouteServiceFailure(err)
-				return
-			}
-		}
 	}
 
 	after := func(rsp *http.Response, endpoint *route.Endpoint, err error) {
@@ -309,8 +257,64 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 		}
 	}
 
-	roundTripper := round_tripper.NewProxyRoundTripper(backend,
-		dropsonde.InstrumentedRoundTripper(p.transport), iter, handler.Logger(), after)
+	var routeServiceArgs route_service.RouteServiceArgs
+	if routeServiceUrl != "" {
+		rsSignature := request.Header.Get(route_service.RouteServiceSignature)
+
+		var recommendedScheme string
+
+		// TODO: Is this on route service config?
+		if p.routeServiceRecommendHttps {
+			recommendedScheme = "https"
+		} else {
+			recommendedScheme = "http"
+		}
+
+		forwardedUrlRaw := recommendedScheme + "://" + hostWithoutPort(request) + request.RequestURI
+		if hasBeenToRouteService(routeServiceUrl, rsSignature) {
+			// A request from a route service destined for a backend instances
+			routeServiceArgs.UrlString = routeServiceUrl
+			err := p.routeServiceConfig.ValidateSignature(&request.Header, forwardedUrlRaw)
+			if err != nil {
+				handler.HandleBadSignature(err)
+				return
+			}
+		} else {
+			var err error
+			routeServiceArgs, err = buildRouteServiceArgs(p.routeServiceConfig, routeServiceUrl, forwardedUrlRaw)
+			if err != nil {
+				handler.HandleRouteServiceFailure(err)
+				return
+			}
+
+			roundTripper = round_trippers.NewRouteServiceRoundTripper(transport, after, handler.Logger())
+		}
+	}
+
+	if isTcpUpgrade(request) {
+		hijacker, ok := proxyWriter.(http.Hijacker)
+		if !ok {
+			handler.HandleTcpFailure(errors.New("response writer is not a hijacker"))
+		}
+
+		after = func(rsp *http.Response, endpoint *route.Endpoint, err error) {
+			accessLog.FirstByteAt = time.Now()
+			if rsp != nil {
+				accessLog.StatusCode = rsp.StatusCode
+			}
+
+		}
+		roundTripper = round_trippers.NewTcpRoundTripper(hijacker, iter, after, handler.Logger())
+	}
+
+	if isWebSocketUpgrade(request) {
+		handler.HandleWebSocketRequest(iter)
+		return
+	}
+
+	if roundTripper == nil {
+		roundTripper = round_trippers.NewBackendRoundTripper(transport, iter, after, handler.Logger())
+	}
 
 	newReverseProxy(roundTripper, request, routeServiceArgs, p.routeServiceConfig, p.forceForwardedProtoHttps).ServeHTTP(proxyWriter, request)
 }
@@ -339,7 +343,12 @@ func handleRouteServiceIntegration(
 	sig := target.Header.Get(route_service.RouteServiceSignature)
 	if forwardingToRouteService(routeServiceArgs.UrlString, sig) {
 		// An endpoint has a route service and this request did not come from the service
-		routeServiceConfig.SetupRouteServiceRequest(target, routeServiceArgs)
+		target.Header.Set(route_service.RouteServiceSignature, routeServiceArgs.Signature)
+		target.Header.Set(route_service.RouteServiceMetadata, routeServiceArgs.Metadata)
+		target.Header.Set(route_service.RouteServiceForwardedUrl, routeServiceArgs.ForwardedUrlRaw)
+
+		target.Host = routeServiceArgs.ParsedUrl.Host
+		target.URL = routeServiceArgs.ParsedUrl
 	} else if hasBeenToRouteService(routeServiceArgs.UrlString, sig) {
 		// Remove the headers since the backend should not see it
 		target.Header.Del(route_service.RouteServiceSignature)
@@ -391,6 +400,7 @@ func (i *wrappedIterator) PostRequest(e *route.Endpoint) {
 	i.nested.PostRequest(e)
 }
 
+// TODO: Move this into route service package
 func buildRouteServiceArgs(routeServiceConfig *route_service.RouteServiceConfig, routeServiceUrl, forwardedUrlRaw string) (route_service.RouteServiceArgs, error) {
 	var routeServiceArgs route_service.RouteServiceArgs
 	sig, metadata, err := routeServiceConfig.GenerateSignatureAndMetadata(forwardedUrlRaw)
@@ -460,10 +470,6 @@ func forwardingToRouteService(rsUrl, sigHeader string) bool {
 
 func hasBeenToRouteService(rsUrl, sigHeader string) bool {
 	return sigHeader != "" && rsUrl != ""
-}
-
-func isProtocolSupported(request *http.Request) bool {
-	return request.ProtoMajor == 1 && (request.ProtoMinor == 0 || request.ProtoMinor == 1)
 }
 
 func isWebSocketUpgrade(request *http.Request) bool {

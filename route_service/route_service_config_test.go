@@ -11,7 +11,6 @@ import (
 	"code.cloudfoundry.org/gorouter/common/secure/fakes"
 	"code.cloudfoundry.org/gorouter/route_service"
 	"code.cloudfoundry.org/gorouter/route_service/header"
-	"code.cloudfoundry.org/gorouter/test_util"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
 	. "github.com/onsi/ginkgo"
@@ -96,54 +95,6 @@ var _ = Describe("Route Service Config", func() {
 				Expect(metadataHeader).To(BeEmpty())
 			})
 		})
-	})
-
-	Describe("SetupRouteServiceRequest", func() {
-		var (
-			request *http.Request
-			rsArgs  route_service.RouteServiceArgs
-		)
-
-		BeforeEach(func() {
-			request = test_util.NewRequest("GET", "test.com", "/path/", nil)
-			str := "https://example-route-service.com"
-			parsed, err := url.Parse(str)
-			Expect(err).NotTo(HaveOccurred())
-			rsArgs = route_service.RouteServiceArgs{
-				UrlString:       str,
-				ParsedUrl:       parsed,
-				Signature:       "signature",
-				Metadata:        "metadata",
-				ForwardedUrlRaw: "http://test.com/path/",
-				RecommendHttps:  true,
-			}
-		})
-
-		It("sets the signature and metadata headers", func() {
-			Expect(request.Header.Get(route_service.RouteServiceSignature)).To(Equal(""))
-			Expect(request.Header.Get(route_service.RouteServiceMetadata)).To(Equal(""))
-
-			config.SetupRouteServiceRequest(request, rsArgs)
-
-			Expect(request.Header.Get(route_service.RouteServiceSignature)).To(Equal("signature"))
-			Expect(request.Header.Get(route_service.RouteServiceMetadata)).To(Equal("metadata"))
-		})
-
-		It("sets the forwarded URL header", func() {
-			Expect(request.Header.Get(route_service.RouteServiceForwardedUrl)).To(Equal(""))
-
-			config.SetupRouteServiceRequest(request, rsArgs)
-
-			Expect(request.Header.Get(route_service.RouteServiceForwardedUrl)).To(Equal("http://test.com/path/"))
-		})
-
-		It("changes the request host and URL", func() {
-			config.SetupRouteServiceRequest(request, rsArgs)
-
-			Expect(request.URL.Host).To(Equal("example-route-service.com"))
-			Expect(request.URL.Scheme).To(Equal("https"))
-		})
-
 	})
 
 	Describe("ValidateSignature", func() {

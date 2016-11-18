@@ -79,16 +79,6 @@ func (rs *RouteServiceConfig) GenerateSignatureAndMetadata(forwardedUrlRaw strin
 	return signatureHeader, metadataHeader, nil
 }
 
-func (rs *RouteServiceConfig) SetupRouteServiceRequest(request *http.Request, args RouteServiceArgs) {
-	rs.logger.Debug("proxy.route-service")
-	request.Header.Set(RouteServiceSignature, args.Signature)
-	request.Header.Set(RouteServiceMetadata, args.Metadata)
-	request.Header.Set(RouteServiceForwardedUrl, args.ForwardedUrlRaw)
-
-	request.Host = args.ParsedUrl.Host
-	request.URL = args.ParsedUrl
-}
-
 func (rs *RouteServiceConfig) ValidateSignature(headers *http.Header, requestUrl string) error {
 	metadataHeader := headers.Get(RouteServiceMetadata)
 	signatureHeader := headers.Get(RouteServiceSignature)

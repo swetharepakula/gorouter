@@ -174,6 +174,12 @@ var _ = Describe("Route Services", func() {
 				Expect(body).To(ContainSubstring("My Special Snowflake Route Service"))
 			})
 
+			PIt("encodes the X-Cf-Forwarded-Url to ensure the header is not interpreted as multiple values", func() {
+				// How to test this in an IT block?
+				// Currently routeServiceListener is defined in BeforeEach
+				// Refactor route service integration to unit test?
+			})
+
 			Context("when the route service is not available", func() {
 				It("returns a 502 bad gateway error", func() {
 					ln := registerHandlerWithRouteService(r, "my_host.com", "https://bad-route-service", func(conn *test_util.HttpConn) {
