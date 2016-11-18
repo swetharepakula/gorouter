@@ -15,7 +15,6 @@ import (
 	router_http "code.cloudfoundry.org/gorouter/common/http"
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/handlers"
-	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/proxy/handler"
 	"code.cloudfoundry.org/gorouter/proxy/round_tripper"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
@@ -45,7 +44,6 @@ type ProxyArgs struct {
 	Ip                         string
 	TraceKey                   string
 	Registry                   LookupRegistry
-	Reporter                   reporter.ProxyReporter
 	AccessLogger               access_log.AccessLogger
 	SecureCookies              bool
 	TLSConfig                  *tls.Config
@@ -85,7 +83,6 @@ type proxy struct {
 	traceKey                   string
 	logger                     lager.Logger
 	registry                   LookupRegistry
-	reporter                   reporter.ProxyReporter
 	accessLogger               access_log.AccessLogger
 	transport                  *http.Transport
 	secureCookies              bool
@@ -107,7 +104,6 @@ func NewProxy(args ProxyArgs) Proxy {
 		ip:           args.Ip,
 		logger:       args.Logger,
 		registry:     args.Registry,
-		reporter:     args.Reporter,
 		transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
 				conn, err := net.DialTimeout(network, addr, 5*time.Second)
@@ -198,7 +194,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 	}
 	accessLog := alr.(*schema.AccessLogRecord)
 
-	handler := handler.NewRequestHandler(request, proxyWriter, p.reporter, accessLog, p.logger)
+	handler := handler.NewRequestHandler(request, proxyWriter, accessLog, p.logger)
 
 	if !isProtocolSupported(request) {
 		handler.HandleUnsupportedProtocol()
@@ -207,7 +203,6 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 
 	routePool := p.lookup(request)
 	if routePool == nil {
-		p.reporter.CaptureBadRequest(request)
 		handler.HandleMissingRoute()
 		return
 	}
@@ -220,7 +215,6 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 			if endpoint != nil {
 				handler.AddLoggingData(lager.Data{"route-endpoint": endpoint.ToLogData()})
 				accessLog.RouteEndpoint = endpoint
-				p.reporter.CaptureRoutingRequest(endpoint, request)
 			}
 		},
 	}
@@ -287,12 +281,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 			router_http.SetTraceHeaders(responseWriter, p.ip, endpoint.CanonicalAddr())
 		}
 
-		latency := time.Since(accessLog.StartedAt)
-
-		p.reporter.CaptureRoutingResponse(endpoint, rsp, accessLog.StartedAt, latency)
-
 		if err != nil {
-			p.reporter.CaptureBadGateway(request)
 			handler.HandleBadGateway(err, request)
 			return
 		}

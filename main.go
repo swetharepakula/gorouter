@@ -13,7 +13,6 @@ import (
 	"code.cloudfoundry.org/gorouter/common/schema"
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/config"
-	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/proxy"
 	rregistry "code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/gorouter/route_fetcher"
@@ -23,7 +22,6 @@ import (
 	"code.cloudfoundry.org/routing-api"
 	uaa_client "code.cloudfoundry.org/uaa-go-client"
 	uaa_config "code.cloudfoundry.org/uaa-go-client/config"
-	"github.com/cloudfoundry/dropsonde"
 	"github.com/nats-io/nats"
 
 	"flag"
@@ -33,7 +31,6 @@ import (
 	"syscall"
 	"time"
 
-	"code.cloudfoundry.org/gorouter/metrics"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/sigmon"
@@ -71,11 +68,6 @@ func main() {
 
 	logger.Info("starting")
 
-	err := dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	if err != nil {
-		logger.Fatal("dropsonde-initialize-error", err)
-	}
-
 	// setup number of procs
 	if c.GoMaxProcs != 0 {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
@@ -88,14 +80,12 @@ func main() {
 	logger.Info("setting-up-nats-connection")
 	natsClient, natsHost := connectToNatsServer(logger.Session("nats"), c)
 
-	metricsReporter := metrics.NewMetricsReporter()
-	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c, metricsReporter)
+	registry := rregistry.NewRouteRegistry(logger.Session("registry"), c)
 	if c.SuspendPruningIfNatsUnavailable {
 		registry.SuspendPruning(func() bool { return !(natsClient.Status() == nats.CONNECTED) })
 	}
 
 	varz := rvarz.NewVarz(registry)
-	compositeReporter := metrics.NewCompositeReporter(varz, metricsReporter)
 
 	accessLogger, err := access_log.CreateRunningAccessLogger(logger.Session("access-log"), c)
 	if err != nil {
@@ -111,7 +101,7 @@ func main() {
 		}
 	}
 
-	proxy := buildProxy(logger.Session("proxy"), c, registry, accessLogger, compositeReporter, crypto, cryptoPrev)
+	proxy := buildProxy(logger.Session("proxy"), c, registry, accessLogger, crypto, cryptoPrev)
 	healthCheck = 0
 	router, err := router.NewRouter(logger.Session("router"), c, proxy, natsClient, registry, varz, &healthCheck, logCounter, nil)
 	if err != nil {
@@ -157,14 +147,13 @@ func createCrypto(logger lager.Logger, secret string) *secure.AesGCM {
 	return crypto
 }
 
-func buildProxy(logger lager.Logger, c *config.Config, registry rregistry.RegistryInterface, accessLogger access_log.AccessLogger, reporter reporter.ProxyReporter, crypto secure.Crypto, cryptoPrev secure.Crypto) proxy.Proxy {
+func buildProxy(logger lager.Logger, c *config.Config, registry rregistry.RegistryInterface, accessLogger access_log.AccessLogger, crypto secure.Crypto, cryptoPrev secure.Crypto) proxy.Proxy {
 	args := proxy.ProxyArgs{
 		Logger:          logger,
 		EndpointTimeout: c.EndpointTimeout,
 		Ip:              c.Ip,
 		TraceKey:        c.TraceKey,
 		Registry:        registry,
-		Reporter:        reporter,
 		AccessLogger:    accessLogger,
 		SecureCookies:   c.SecureCookies,
 		TLSConfig: &tls.Config{

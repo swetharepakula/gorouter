@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/gorouter/config"
-	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/registry/container"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/lager"
@@ -48,13 +47,11 @@ type RouteRegistry struct {
 	pruneStaleDropletsInterval time.Duration
 	dropletStaleThreshold      time.Duration
 
-	reporter reporter.RouteRegistryReporter
-
 	ticker           *time.Ticker
 	timeOfLastUpdate time.Time
 }
 
-func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.RouteRegistryReporter) *RouteRegistry {
+func NewRouteRegistry(logger lager.Logger, c *config.Config) *RouteRegistry {
 	r := &RouteRegistry{}
 	r.logger = logger
 	r.byUri = container.NewTrie()
@@ -63,15 +60,12 @@ func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.R
 	r.dropletStaleThreshold = c.DropletStaleThreshold
 	r.suspendPruning = func() bool { return false }
 
-	r.reporter = reporter
 	return r
 }
 
 func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 	t := time.Now()
 	data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
-
-	r.reporter.CaptureRegistryMessage(endpoint)
 
 	r.Lock()
 
@@ -99,7 +93,6 @@ func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 
 func (r *RouteRegistry) Unregister(uri route.Uri, endpoint *route.Endpoint) {
 	data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
-	r.reporter.CaptureRegistryMessage(endpoint)
 
 	r.Lock()
 
@@ -123,8 +116,6 @@ func (r *RouteRegistry) Unregister(uri route.Uri, endpoint *route.Endpoint) {
 }
 
 func (r *RouteRegistry) Lookup(uri route.Uri) *route.Pool {
-	started := time.Now()
-
 	r.RLock()
 
 	uri = uri.RouteKey()
@@ -136,8 +127,6 @@ func (r *RouteRegistry) Lookup(uri route.Uri) *route.Pool {
 	}
 
 	r.RUnlock()
-	endLookup := time.Now()
-	r.reporter.CaptureLookupTime(endLookup.Sub(started))
 	return pool
 }
 
@@ -169,8 +158,6 @@ func (r *RouteRegistry) StartPruningCycle() {
 					r.logger.Info("start-pruning-droplets")
 					r.pruneStaleDroplets()
 					r.logger.Info("finished-pruning-droplets")
-					msSinceLastUpdate := uint64(time.Since(r.TimeOfLastUpdate()) / time.Millisecond)
-					r.reporter.CaptureRouteStats(r.NumUris(), msSinceLastUpdate)
 				}
 			}
 		}()

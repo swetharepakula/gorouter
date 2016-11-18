@@ -13,7 +13,6 @@ import (
 
 	"code.cloudfoundry.org/gorouter/access_log/schema"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
-	"code.cloudfoundry.org/gorouter/metrics/reporter"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/lager"
@@ -27,18 +26,16 @@ var NoEndpointsAvailable = errors.New("No endpoints available")
 
 type RequestHandler struct {
 	logger    lager.Logger
-	reporter  reporter.ProxyReporter
 	logrecord *schema.AccessLogRecord
 
 	request  *http.Request
 	response utils.ProxyResponseWriter
 }
 
-func NewRequestHandler(request *http.Request, response utils.ProxyResponseWriter, r reporter.ProxyReporter, alr *schema.AccessLogRecord, logger lager.Logger) *RequestHandler {
+func NewRequestHandler(request *http.Request, response utils.ProxyResponseWriter, alr *schema.AccessLogRecord, logger lager.Logger) *RequestHandler {
 	requestLogger := setupLogger(request, logger)
 	return &RequestHandler{
 		logger:    requestLogger,
-		reporter:  r,
 		logrecord: alr,
 		request:   request,
 		response:  response,
@@ -101,7 +98,6 @@ func (h *RequestHandler) HandleMissingRoute() {
 }
 
 func (h *RequestHandler) HandleBadGateway(err error, request *http.Request) {
-	h.reporter.CaptureBadGateway(request)
 	h.logger.Error("endpoint-failed", err)
 
 	h.response.Header().Set("X-Cf-RouterError", "endpoint_failure")
