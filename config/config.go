@@ -65,8 +65,6 @@ type LoggingConfig struct {
 	Syslog             string `yaml:"syslog"`
 	Level              string `yaml:"level"`
 	LoggregatorEnabled bool   `yaml:"loggregator_enabled"`
-	MetronAddress      string `yaml:"metron_address"`
-
 	// This field is populated by the `Process` function.
 	JobName string `yaml:"-"`
 }
@@ -81,8 +79,7 @@ type Tracing struct {
 }
 
 var defaultLoggingConfig = LoggingConfig{
-	Level:         "debug",
-	MetronAddress: "localhost:3457",
+	Level: "debug",
 }
 
 type Config struct {
