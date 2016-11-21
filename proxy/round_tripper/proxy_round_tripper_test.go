@@ -48,6 +48,10 @@ var _ = Describe("ProxyRoundTripper", func() {
 			transport = &roundtripperfakes.FakeRoundTripper{}
 		})
 
+		AfterEach(func() {
+			after = nil
+		})
+
 		Context("backend", func() {
 			BeforeEach(func() {
 				endpoint := &route.Endpoint{
