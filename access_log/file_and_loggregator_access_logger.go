@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/cloudfoundry/dropsonde/logs"
 
 	"code.cloudfoundry.org/gorouter/access_log/schema"
 	"code.cloudfoundry.org/gorouter/config"
@@ -99,7 +98,7 @@ func (x *FileAndLoggregatorAccessLogger) Run() {
 				}
 			}
 			if x.dropsondeSourceInstance != "" && record.ApplicationId() != "" {
-				logs.SendAppLog(record.ApplicationId(), record.LogMessage(), "RTR", x.dropsondeSourceInstance)
+				// logs.SendAppLog(record.ApplicationId(), record.LogMessage(), "RTR", x.dropsondeSourceInstance)
 			}
 		case <-x.stopCh:
 			return

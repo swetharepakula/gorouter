@@ -21,7 +21,6 @@ import (
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/gorouter/route_service"
 	"code.cloudfoundry.org/lager"
-	"github.com/cloudfoundry/dropsonde"
 	"github.com/urfave/negroni"
 )
 
@@ -298,7 +297,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 	}
 
 	roundTripper := round_tripper.NewProxyRoundTripper(backend,
-		dropsonde.InstrumentedRoundTripper(p.transport), iter, handler, after)
+		p.transport, iter, handler, after)
 
 	newReverseProxy(roundTripper, request, routeServiceArgs, p.routeServiceConfig, p.forceForwardedProtoHttps).ServeHTTP(proxyWriter, request)
 
