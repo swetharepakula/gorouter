@@ -66,7 +66,7 @@ func NewRouteRegistry(logger lager.Logger, c *config.Config, reporter reporter.R
 	r.suspendPruning = func() bool { return false }
 
 	pool := route.NewPool(10*time.Second, "")
-	endpoint := route.NewEndpoint("", "gostatic-0.foo.com", 8080, "", "", nil, 120, "", models.ModificationTag{})
+	endpoint := route.NewEndpoint("", "10.0.1.2", 8080, "", "", nil, 120, "", models.ModificationTag{})
 	pool.Put(endpoint)
 	r.pool = pool
 
