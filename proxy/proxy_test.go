@@ -1197,10 +1197,10 @@ var _ = Describe("Proxy", func() {
 		It("Logs a request when it exits early", func() {
 			conn := dialProxy(proxyServer)
 
-			body := &bytes.Buffer{}
-			body.WriteString("ABCD")
-			req := test_util.NewRequest("POST", "test", "/", ioutil.NopCloser(body))
-			conn.WriteRequest(req)
+			conn.WriteLines([]string{
+				"GET / HTTP/1.1",
+				"Host: test",
+			})
 
 			resp, _ := conn.ReadResponse()
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
