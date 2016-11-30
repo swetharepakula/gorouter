@@ -37,6 +37,8 @@ import (
 	"github.com/armon/go-proxyproto"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/nats-io/nats"
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
 var DrainTimeout = errors.New("router: Drain timeout")
@@ -215,11 +217,15 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	r.logger.Info("completed-wait")
 
-	handler := gorouterHandler{handler: dropsonde.InstrumentedHandler(r.proxy), logger: r.logger}
+	handler := &gorouterHandler{handler: dropsonde.InstrumentedHandler(r.proxy), logger: r.logger}
 
-	server := &http.Server{
-		Handler:   &handler,
-		ConnState: r.HandleConnState,
+	// server := &http.Server{
+	// 	Handler:   &handler,
+	// 	ConnState: r.HandleConnState,
+	// }
+
+	server := &fasthttp.Server{
+		Handler: fasthttpadaptor.NewFastHTTPHandler(handler),
 	}
 
 	err := r.serveHTTP(server, r.errChan)
@@ -303,7 +309,7 @@ func (r *Router) DrainAndStop() {
 	r.Stop()
 }
 
-func (r *Router) serveHTTPS(server *http.Server, errChan chan error) error {
+func (r *Router) serveHTTPS(server *fasthttp.Server, errChan chan error) error {
 	if r.config.EnableSSL {
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{r.config.SSLCertificate},
@@ -340,7 +346,7 @@ func (r *Router) serveHTTPS(server *http.Server, errChan chan error) error {
 	return nil
 }
 
-func (r *Router) serveHTTP(server *http.Server, errChan chan error) error {
+func (r *Router) serveHTTP(server *fasthttp.Server, errChan chan error) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", r.config.Port))
 	if err != nil {
 		r.logger.Fatal("tcp-listener-error", err)
