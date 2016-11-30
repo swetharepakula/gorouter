@@ -323,8 +323,8 @@ func newReverseProxy(proxyTransport http.RoundTripper, req *http.Request,
 			setupProxyRequest(req, request, forceForwardedProtoHttps)
 			handleRouteServiceIntegration(request, routeServiceArgs, routeServiceConfig)
 		},
-		Transport:     proxyTransport,
-		FlushInterval: 50 * time.Millisecond,
+		Transport: proxyTransport,
+		// FlushInterval: 50 * time.Millisecond,
 	}
 
 	return rproxy
