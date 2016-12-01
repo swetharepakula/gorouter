@@ -118,7 +118,6 @@ func NewProxy(args ProxyArgs) Proxy {
 				}
 				return conn, err
 			},
-			DisableKeepAlives:  true,
 			DisableCompression: true,
 			TLSClientConfig:    args.TLSConfig,
 		},
