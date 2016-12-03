@@ -25,20 +25,16 @@ const (
 var NoEndpointsAvailable = errors.New("No endpoints available")
 
 type RequestHandler struct {
-	logger    lager.Logger
 	logrecord *schema.AccessLogRecord
 
 	request  *http.Request
 	response utils.ProxyResponseWriter
 }
 
-func NewRequestHandler(request *http.Request, response utils.ProxyResponseWriter, alr *schema.AccessLogRecord, logger lager.Logger) *RequestHandler {
-	requestLogger := setupLogger(request, logger)
+func NewRequestHandler(request *http.Request, response utils.ProxyResponseWriter) *RequestHandler {
 	return &RequestHandler{
-		logger:    requestLogger,
-		logrecord: alr,
-		request:   request,
-		response:  response,
+		request:  request,
+		response: response,
 	}
 }
 
@@ -52,14 +48,14 @@ func setupLogger(request *http.Request, logger lager.Logger) lager.Logger {
 	})
 }
 
-func (h *RequestHandler) Logger() lager.Logger {
-	return h.logger
-}
+// func (h *RequestHandler) Logger() lager.Logger {
+// 	return h.logger
+// }
 
-func (h *RequestHandler) AddLoggingData(data lager.Data) {
-	withData := h.logger.WithData(data)
-	h.logger = withData
-}
+// func (h *RequestHandler) AddLoggingData(data lager.Data) {
+// 	withData := h.logger.WithData(data)
+// 	h.logger = withData
+// }
 
 func (h *RequestHandler) HandleHeartbeat(ok bool) {
 	h.response.Header().Set("Cache-Control", "private, max-age=0")
@@ -90,7 +86,7 @@ func (h *RequestHandler) HandleUnsupportedProtocol() {
 }
 
 func (h *RequestHandler) HandleMissingRoute() {
-	h.logger.Info("unknown-route")
+	//	h.logger.Info("unknown-route")
 
 	h.response.Header().Set("X-Cf-RouterError", "unknown_route")
 	message := fmt.Sprintf("Requested route ('%s') does not exist.", h.request.Host)
@@ -98,7 +94,7 @@ func (h *RequestHandler) HandleMissingRoute() {
 }
 
 func (h *RequestHandler) HandleBadGateway(err error, request *http.Request) {
-	h.logger.Error("endpoint-failed", err)
+	//	h.logger.Error("endpoint-failed", err)
 
 	h.response.Header().Set("X-Cf-RouterError", "endpoint_failure")
 	h.writeStatus(http.StatusBadGateway, "Registered endpoint failed to handle the request.")
@@ -106,21 +102,21 @@ func (h *RequestHandler) HandleBadGateway(err error, request *http.Request) {
 }
 
 func (h *RequestHandler) HandleBadSignature(err error) {
-	h.logger.Error("signature-validation-failed", err)
+	//	h.logger.Error("signature-validation-failed", err)
 
 	h.writeStatus(http.StatusBadRequest, "Failed to validate Route Service Signature")
 	h.response.Done()
 }
 
 func (h *RequestHandler) HandleRouteServiceFailure(err error) {
-	h.logger.Error("route-service-failed", err)
+	//	h.logger.Error("route-service-failed", err)
 
 	h.writeStatus(http.StatusInternalServerError, "Route service request failed.")
 	h.response.Done()
 }
 
 func (h *RequestHandler) HandleUnsupportedRouteService() {
-	h.logger.Info("route-service-unsupported")
+	//h.logger.Info("route-service-unsupported")
 
 	h.response.Header().Set("X-Cf-RouterError", "route_service_unsupported")
 	h.writeStatus(http.StatusBadGateway, "Support for route services is disabled.")
@@ -128,25 +124,25 @@ func (h *RequestHandler) HandleUnsupportedRouteService() {
 }
 
 func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
-	h.logger.Info("handling-tcp-request", lager.Data{"Upgrade": "tcp"})
+	//	h.logger.Info("handling-tcp-request", lager.Data{"Upgrade": "tcp"})
 
 	h.logrecord.StatusCode = http.StatusSwitchingProtocols
 
 	err := h.serveTcp(iter)
 	if err != nil {
-		h.logger.Error("tcp-request-failed", err)
+		//	h.logger.Error("tcp-request-failed", err)
 		h.writeStatus(http.StatusBadRequest, "TCP forwarding to endpoint failed.")
 	}
 }
 
 func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {
-	h.logger.Info("handling-websocket-request", lager.Data{"Upgrade": "websocket"})
+	//	h.logger.Info("handling-websocket-request", lager.Data{"Upgrade": "websocket"})
 
 	h.logrecord.StatusCode = http.StatusSwitchingProtocols
 
 	err := h.serveWebSocket(iter)
 	if err != nil {
-		h.logger.Error("websocket-request-failed", err)
+		//		h.logger.Error("websocket-request-failed", err)
 		h.writeStatus(http.StatusBadRequest, "WebSocket request to endpoint failed.")
 	}
 }
@@ -154,7 +150,7 @@ func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {
 func (h *RequestHandler) writeStatus(code int, message string) {
 	body := fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message)
 
-	h.logger.Info("status", lager.Data{"body": body})
+	//	h.logger.Info("status", lager.Data{"body": body})
 	h.logrecord.StatusCode = code
 
 	http.Error(h.response, body, code)
@@ -194,7 +190,7 @@ func (h *RequestHandler) serveTcp(iter route.EndpointIterator) error {
 		}
 
 		iter.EndpointFailed()
-		h.logger.Error("tcp-connection-failed", err)
+		//		h.logger.Error("tcp-connection-failed", err)
 
 		retry++
 		if retry == MaxRetries {
@@ -241,7 +237,7 @@ func (h *RequestHandler) serveWebSocket(iter route.EndpointIterator) error {
 		}
 
 		iter.EndpointFailed()
-		h.logger.Error("websocket-connection-failed", err)
+		//	h.logger.Error("websocket-connection-failed", err)
 
 		retry++
 		if retry == MaxRetries {

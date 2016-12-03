@@ -51,9 +51,8 @@ type RouteRegistry struct {
 	timeOfLastUpdate time.Time
 }
 
-func NewRouteRegistry(logger lager.Logger, c *config.Config) *RouteRegistry {
+func NewRouteRegistry(c *config.Config) *RouteRegistry {
 	r := &RouteRegistry{}
-	r.logger = logger
 	r.byUri = container.NewTrie()
 
 	r.pruneStaleDropletsInterval = c.PruneStaleDropletsInterval
@@ -65,7 +64,7 @@ func NewRouteRegistry(logger lager.Logger, c *config.Config) *RouteRegistry {
 
 func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 	t := time.Now()
-	data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
+	//	data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
 
 	r.Lock()
 
@@ -79,16 +78,16 @@ func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 		r.logger.Debug("uri-added", lager.Data{"uri": uri})
 	}
 
-	endpointAdded := pool.Put(endpoint)
+	pool.Put(endpoint)
 
 	r.timeOfLastUpdate = t
 	r.Unlock()
 
-	if endpointAdded {
-		r.logger.Debug("endpoint-registered", data)
-	} else {
-		r.logger.Debug("endpoint-not-registered", data)
-	}
+	// if endpointAdded {
+	// 	r.logger.Debug("endpoint-registered", data)
+	// } else {
+	// 	r.logger.Debug("endpoint-not-registered", data)
+	// }
 }
 
 func (r *RouteRegistry) Unregister(uri route.Uri, endpoint *route.Endpoint) {

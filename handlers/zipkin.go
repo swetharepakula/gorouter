@@ -6,20 +6,17 @@ import (
 	"github.com/urfave/negroni"
 
 	router_http "code.cloudfoundry.org/gorouter/common/http"
-	"code.cloudfoundry.org/lager"
 )
 
 type zipkin struct {
 	zipkinEnabled bool
-	logger        lager.Logger
 	headersToLog  *[]string // Shared state with proxy for access logs
 }
 
-func NewZipkin(enabled bool, headersToLog *[]string, logger lager.Logger) negroni.Handler {
+func NewZipkin(enabled bool, headersToLog *[]string) negroni.Handler {
 	return &zipkin{
 		zipkinEnabled: enabled,
 		headersToLog:  headersToLog,
-		logger:        logger,
 	}
 }
 
@@ -28,7 +25,7 @@ func (z *zipkin) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	if !z.zipkinEnabled {
 		return
 	}
-	router_http.SetB3Headers(r, z.logger)
+	router_http.SetB3Headers(r)
 
 	if !contains(*z.headersToLog, router_http.B3TraceIdHeader) {
 		*z.headersToLog = append(*z.headersToLog, router_http.B3TraceIdHeader)

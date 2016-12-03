@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -20,7 +19,6 @@ import (
 	"code.cloudfoundry.org/gorouter/proxy/utils"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/gorouter/route_service"
-	"code.cloudfoundry.org/lager"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/urfave/negroni"
 )
@@ -53,7 +51,6 @@ type ProxyArgs struct {
 	Crypto                     secure.Crypto
 	CryptoPrev                 secure.Crypto
 	ExtraHeadersToLog          *[]string
-	Logger                     lager.Logger
 	HealthCheckUserAgent       string
 	HeartbeatOK                *int32
 	EnableZipkin               bool
@@ -81,9 +78,7 @@ func (p *proxyWriterHandler) ServeHTTP(responseWriter http.ResponseWriter, reque
 type proxy struct {
 	ip                         string
 	traceKey                   string
-	logger                     lager.Logger
 	registry                   LookupRegistry
-	accessLogger               access_log.AccessLogger
 	transport                  *http.Transport
 	secureCookies              bool
 	heartbeatOK                *int32
@@ -96,14 +91,12 @@ type proxy struct {
 }
 
 func NewProxy(args ProxyArgs) Proxy {
-	routeServiceConfig := route_service.NewRouteServiceConfig(args.Logger, args.RouteServiceEnabled, args.RouteServiceTimeout, args.Crypto, args.CryptoPrev, args.RouteServiceRecommendHttps)
+	//	routeServiceConfig := route_service.NewRouteServiceConfig(args.Logger, args.RouteServiceEnabled, args.RouteServiceTimeout, args.Crypto, args.CryptoPrev, args.RouteServiceRecommendHttps)
 
 	p := &proxy{
-		accessLogger: args.AccessLogger,
-		traceKey:     args.TraceKey,
-		ip:           args.Ip,
-		logger:       args.Logger,
-		registry:     args.Registry,
+		traceKey: args.TraceKey,
+		ip:       args.Ip,
+		registry: args.Registry,
 		transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
 				conn, err := net.DialTimeout(network, addr, 5*time.Second)
@@ -119,9 +112,9 @@ func NewProxy(args ProxyArgs) Proxy {
 			DisableCompression: true,
 			TLSClientConfig:    args.TLSConfig,
 		},
-		secureCookies:              args.SecureCookies,
-		heartbeatOK:                args.HeartbeatOK, // 1->true, 0->false
-		routeServiceConfig:         routeServiceConfig,
+		secureCookies: args.SecureCookies,
+		heartbeatOK:   args.HeartbeatOK, // 1->true, 0->false
+		//routeServiceConfig:         routeServiceConfig,
 		extraHeadersToLog:          args.ExtraHeadersToLog,
 		routeServiceRecommendHttps: args.RouteServiceRecommendHttps,
 		healthCheckUserAgent:       args.HealthCheckUserAgent,
@@ -131,9 +124,9 @@ func NewProxy(args ProxyArgs) Proxy {
 
 	n := negroni.New()
 	n.Use(&proxyWriterHandler{})
-	n.Use(handlers.NewAccessLog(args.AccessLogger, args.ExtraHeadersToLog))
-	n.Use(handlers.NewHealthcheck(args.HealthCheckUserAgent, p.heartbeatOK, args.Logger))
-	n.Use(handlers.NewZipkin(args.EnableZipkin, args.ExtraHeadersToLog, args.Logger))
+	//	n.Use(handlers.NewAccessLog(args.AccessLogger, args.ExtraHeadersToLog))
+	n.Use(handlers.NewHealthcheck(args.HealthCheckUserAgent, p.heartbeatOK))
+	//	n.Use(handlers.NewZipkin(args.EnableZipkin, args.ExtraHeadersToLog, args.Logger))
 
 	n.UseHandler(p)
 	handlers := &proxyHandler{
@@ -175,7 +168,7 @@ func (p *proxy) lookup(request *http.Request) *route.Pool {
 		appId, appIndex, err := router_http.ValidateCfAppInstance(appInstanceHeader)
 
 		if err != nil {
-			p.logger.Error("invalid-app-instance-header", err)
+			//			p.logger.Error("invalid-app-instance-header", err)
 			return nil
 		} else {
 			return p.registry.LookupWithInstance(uri, appId, appIndex)
@@ -190,11 +183,11 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 
 	alr := proxyWriter.Context().Value("AccessLogRecord")
 	if alr == nil {
-		p.logger.Error("AccessLogRecord not set on context", errors.New("failed-to-access-LogRecord"))
+		//		p.logger.Error("AccessLogRecord not set on context", errors.New("failed-to-access-LogRecord"))
 	}
 	accessLog := alr.(*schema.AccessLogRecord)
 
-	handler := handler.NewRequestHandler(request, proxyWriter, accessLog, p.logger)
+	handler := handler.NewRequestHandler(request, proxyWriter)
 
 	if !isProtocolSupported(request) {
 		handler.HandleUnsupportedProtocol()
@@ -213,7 +206,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 
 		afterNext: func(endpoint *route.Endpoint) {
 			if endpoint != nil {
-				handler.AddLoggingData(lager.Data{"route-endpoint": endpoint.ToLogData()})
+				//				handler.AddLoggingData(lager.Data{"route-endpoint": endpoint.ToLogData()})
 				accessLog.RouteEndpoint = endpoint
 			}
 		},

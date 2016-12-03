@@ -23,7 +23,6 @@ import (
 	"code.cloudfoundry.org/gorouter/common"
 	"code.cloudfoundry.org/gorouter/common/health"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
-	"code.cloudfoundry.org/gorouter/common/schema"
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/handlers"
 	"code.cloudfoundry.org/gorouter/metrics/monitor"
@@ -31,7 +30,6 @@ import (
 	"code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/gorouter/varz"
-	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/localip"
 	"code.cloudfoundry.org/routing-api/models"
 	"github.com/armon/go-proxyproto"
@@ -69,7 +67,6 @@ type Router struct {
 	stopLock         sync.Mutex
 	uptimeMonitor    *monitor.Uptime
 	HeartbeatOK      *int32
-	logger           lager.Logger
 	errChan          chan error
 	NatsHost         *atomic.Value
 }
@@ -86,8 +83,8 @@ type RegistryMessage struct {
 	PrivateInstanceIndex    string            `json:"private_instance_index"`
 }
 
-func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClient *nats.Conn, r *registry.RouteRegistry,
-	v varz.Varz, heartbeatOK *int32, logCounter *schema.LogCounter, errChan chan error) (*Router, error) {
+func NewRouter(cfg *config.Config, p proxy.Proxy, mbusClient *nats.Conn, r *registry.RouteRegistry,
+	v varz.Varz, heartbeatOK *int32, errChan chan error) (*Router, error) {
 
 	var host string
 	if cfg.Status.Port != 0 {
@@ -101,12 +98,11 @@ func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClien
 			Index:       cfg.Index,
 			Host:        host,
 			Credentials: []string{cfg.Status.User, cfg.Status.Pass},
-			LogCounts:   logCounter,
 		},
 	}
 
 	healthz := &health.Healthz{}
-	health := handlers.NewHealthcheck("", heartbeatOK, logger)
+	health := handlers.NewHealthcheck("", heartbeatOK)
 	component := &common.VcapComponent{
 		Config:  cfg,
 		Varz:    varz,
@@ -115,7 +111,6 @@ func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClien
 		InfoRoutes: map[string]json.Marshaler{
 			"/routes": r,
 		},
-		Logger: logger,
 	}
 
 	routerErrChan := errChan
@@ -134,7 +129,6 @@ func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClien
 		tlsServeDone: make(chan struct{}),
 		idleConns:    make(map[net.Conn]struct{}),
 		activeConns:  make(map[net.Conn]struct{}),
-		logger:       logger,
 		errChan:      routerErrChan,
 		HeartbeatOK:  heartbeatOK,
 		stopping:     false,
@@ -150,13 +144,12 @@ func NewRouter(logger lager.Logger, cfg *config.Config, p proxy.Proxy, mbusClien
 
 type gorouterHandler struct {
 	handler http.Handler
-	logger  lager.Logger
 }
 
 func (h *gorouterHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// The X-Vcap-Request-Id must be set before the request is passed into the
 	// dropsonde InstrumentedHandler
-	router_http.SetVcapRequestIdHeader(req, h.logger)
+	router_http.SetVcapRequestIdHeader(req)
 
 	h.handler.ServeHTTP(res, req)
 }
@@ -178,7 +171,7 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		natsUrl, err := url.Parse(conn.ConnectedUrl())
 		natsHostStr := ""
 		if err != nil {
-			r.logger.Error("nats-url-parse-error", err)
+			//			r.logger.Error("nats-url-parse-error", err)
 		} else {
 			natsHostStr = natsUrl.Host
 		}
@@ -186,7 +179,7 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 			r.NatsHost.Store(natsHostStr)
 		}
 
-		r.logger.Info("nats-connection-reconnected", lager.Data{"nats-host": natsHostStr})
+		//	r.logger.Info("nats-connection-reconnected", lager.Data{"nats-host": natsHostStr})
 		r.SendStartMessage()
 	}
 
@@ -195,27 +188,27 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	lbOKDelay := r.config.StartResponseDelayInterval - r.config.LoadBalancerHealthyThreshold
 
-	totalWaitDelay := r.config.LoadBalancerHealthyThreshold
-	if lbOKDelay > 0 {
-		totalWaitDelay = r.config.StartResponseDelayInterval
-	}
+	// totalWaitDelay := r.config.LoadBalancerHealthyThreshold
+	// if lbOKDelay > 0 {
+	// 	totalWaitDelay = r.config.StartResponseDelayInterval
+	// }
 
-	r.logger.Info(fmt.Sprintf("Waiting %s before listening...", totalWaitDelay),
-		lager.Data{"route_registration_interval": r.config.StartResponseDelayInterval.String(),
-			"load_balancer_healthy_threshold": r.config.LoadBalancerHealthyThreshold.String()})
+	// r.logger.Info(fmt.Sprintf("Waiting %s before listening...", totalWaitDelay),
+	// 	lager.Data{"route_registration_interval": r.config.StartResponseDelayInterval.String(),
+	// 		"load_balancer_healthy_threshold": r.config.LoadBalancerHealthyThreshold.String()})
 
 	if lbOKDelay > 0 {
-		r.logger.Debug(fmt.Sprintf("Sleeping for %d, before enabling /health endpoint", lbOKDelay))
+		//		r.logger.Debug(fmt.Sprintf("Sleeping for %d, before enabling /health endpoint", lbOKDelay))
 		time.Sleep(lbOKDelay)
 	}
 
 	atomic.StoreInt32(r.HeartbeatOK, 1)
-	r.logger.Debug("Gorouter reporting healthy")
+	//r.logger.Debug("Gorouter reporting healthy")
 	time.Sleep(r.config.LoadBalancerHealthyThreshold)
 
-	r.logger.Info("completed-wait")
+	//	r.logger.Info("completed-wait")
 
-	handler := gorouterHandler{handler: dropsonde.InstrumentedHandler(r.proxy), logger: r.logger}
+	handler := gorouterHandler{handler: dropsonde.InstrumentedHandler(r.proxy)}
 
 	server := &http.Server{
 		Handler:   &handler,
@@ -239,7 +232,7 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	r.logger.Info("gorouter.started")
+	//r.logger.Info("gorouter.started")
 	go r.uptimeMonitor.Start()
 
 	close(ready)
@@ -264,39 +257,39 @@ func (r *Router) OnErrOrSignal(signals <-chan os.Signal, errChan chan error) {
 	select {
 	case err := <-errChan:
 		if err != nil {
-			r.logger.Error("Error occurred: ", err)
+			//	r.logger.Error("Error occurred: ", err)
 			r.DrainAndStop()
 		}
 	case sig := <-signals:
 		go func() {
-			for sig := range signals {
-				r.logger.Info(
-					"gorouter.signal.ignored",
-					lager.Data{
-						"signal": sig.String(),
-					},
-				)
-			}
+			//		for sig := range signals {
+			// r.logger.Info(
+			// 	"gorouter.signal.ignored",
+			// 	lager.Data{
+			// 		"signal": sig.String(),
+			// 	},
+			//	)
+			//	}
 		}()
 		if sig == syscall.SIGUSR1 {
 			r.DrainAndStop()
 		} else {
 			r.Stop()
 		}
-		r.logger.Info("gorouter.exited")
+		//		r.logger.Info("gorouter.exited")
 	}
 }
 
 func (r *Router) DrainAndStop() {
 	drainWait := r.config.DrainWait
 	drainTimeout := r.config.DrainTimeout
-	r.logger.Info(
-		"gorouter.draining",
-		lager.Data{
-			"wait":    (drainWait).String(),
-			"timeout": (drainTimeout).String(),
-		},
-	)
+	// r.logger.Info(
+	// 	"gorouter.draining",
+	// 	lager.Data{
+	// 		"wait":    (drainWait).String(),
+	// 		"timeout": (drainTimeout).String(),
+	// 	},
+	// )
 
 	r.Drain(drainWait, drainTimeout)
 
@@ -312,7 +305,7 @@ func (r *Router) serveHTTPS(server *http.Server, errChan chan error) error {
 
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", r.config.SSLPort))
 		if err != nil {
-			r.logger.Fatal("tcp-listener-error", err)
+			//			r.logger.Fatal("tcp-listener-error", err)
 			return err
 		}
 
@@ -325,7 +318,7 @@ func (r *Router) serveHTTPS(server *http.Server, errChan chan error) error {
 
 		r.tlsListener = tls.NewListener(listener, tlsConfig)
 
-		r.logger.Info("tls-listener-started", lager.Data{"address": r.tlsListener.Addr()})
+		//		r.logger.Info("tls-listener-started", lager.Data{"address": r.tlsListener.Addr()})
 
 		go func() {
 			err := server.Serve(r.tlsListener)
@@ -343,7 +336,7 @@ func (r *Router) serveHTTPS(server *http.Server, errChan chan error) error {
 func (r *Router) serveHTTP(server *http.Server, errChan chan error) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", r.config.Port))
 	if err != nil {
-		r.logger.Fatal("tcp-listener-error", err)
+		//	r.logger.Fatal("tcp-listener-error", err)
 		return err
 	}
 
@@ -355,7 +348,7 @@ func (r *Router) serveHTTP(server *http.Server, errChan chan error) error {
 		}
 	}
 
-	r.logger.Info("tcp-listener-started", lager.Data{"address": r.listener.Addr()})
+	//	r.logger.Info("tcp-listener-started", lager.Data{"address": r.listener.Addr()})
 
 	go func() {
 		err := server.Serve(r.listener)
@@ -381,8 +374,8 @@ func (r *Router) Drain(drainWait, drainTimeout time.Duration) error {
 
 	r.connLock.Lock()
 
-	r.logger.Info(fmt.Sprintf("Draining with %d outstanding active connections", len(r.activeConns)))
-	r.logger.Info(fmt.Sprintf("Draining with %d outstanding idle connections", len(r.idleConns)))
+	//	r.logger.Info(fmt.Sprintf("Draining with %d outstanding active connections", len(r.activeConns)))
+	//	r.logger.Info(fmt.Sprintf("Draining with %d outstanding idle connections", len(r.idleConns)))
 	r.closeIdleConns()
 
 	if len(r.activeConns) == 0 {
@@ -396,7 +389,7 @@ func (r *Router) Drain(drainWait, drainTimeout time.Duration) error {
 	select {
 	case <-drained:
 	case <-time.After(drainTimeout):
-		r.logger.Info("router.drain.timed-out")
+		//	r.logger.Info("router.drain.timed-out")
 		return DrainTimeout
 	}
 
@@ -404,9 +397,9 @@ func (r *Router) Drain(drainWait, drainTimeout time.Duration) error {
 }
 
 func (r *Router) Stop() {
-	stoppingAt := time.Now()
+	//	stoppingAt := time.Now()
 
-	r.logger.Info("gorouter.stopping")
+	//	r.logger.Info("gorouter.stopping")
 
 	r.stopListening()
 
@@ -416,12 +409,12 @@ func (r *Router) Stop() {
 
 	r.component.Stop()
 	r.uptimeMonitor.Stop()
-	r.logger.Info(
-		"gorouter.stopped",
-		lager.Data{
-			"took": time.Since(stoppingAt).String(),
-		},
-	)
+	// r.logger.Info(
+	// 	"gorouter.stopped",
+	// 	lager.Data{
+	// 		"took": time.Since(stoppingAt).String(),
+	// 	},
+	// )
 }
 
 // connLock must be locked
@@ -465,7 +458,7 @@ func (r *Router) SubscribeRegister() {
 
 func (r *Router) SubscribeUnregister() {
 	r.subscribeRegistry("router.unregister", func(registryMessage *RegistryMessage) {
-		r.logger.Info("unregister-route", lager.Data{"message": registryMessage})
+		//		r.logger.Info("unregister-route", lager.Data{"message": registryMessage})
 		for _, uri := range registryMessage.Uris {
 			r.registry.Unregister(
 				uri,
@@ -478,7 +471,7 @@ func (r *Router) SubscribeUnregister() {
 func (r *Router) HandleGreetings() {
 	r.mbusClient.Subscribe("router.greet", func(msg *nats.Msg) {
 		if msg.Reply == "" {
-			r.logger.Info(fmt.Sprintf("Received message with empty reply on subject %s", msg.Subject))
+			//		r.logger.Info(fmt.Sprintf("Received message with empty reply on subject %s", msg.Subject))
 			return
 		}
 
@@ -495,9 +488,9 @@ func (r *Router) SendStartMessage() {
 
 	// Send start message once at start
 	err = r.mbusClient.Publish("router.start", b)
-	if err != nil {
-		r.logger.Error("failed-to-publish-greet-message", err)
-	}
+	// if err != nil {
+	// 	r.logger.Error("failed-to-publish-greet-message", err)
+	// }
 }
 
 func (r *Router) ScheduleFlushApps() {
@@ -566,7 +559,7 @@ func (r *Router) flushApps(t time.Time) {
 
 	y, err := json.Marshal(x)
 	if err != nil {
-		r.logger.Info(fmt.Sprintf("flushApps: Error marshalling JSON: %s", err.Error()))
+		//		r.logger.Info(fmt.Sprintf("flushApps: Error marshalling JSON: %s", err.Error()))
 		return
 	}
 
@@ -577,7 +570,7 @@ func (r *Router) flushApps(t time.Time) {
 
 	z := b.Bytes()
 
-	r.logger.Debug("Debug Info", lager.Data{"Active apps": len(x), "message size:": len(z)})
+	//	r.logger.Debug("Debug Info", lager.Data{"Active apps": len(x), "message size:": len(z)})
 
 	r.mbusClient.Publish("router.active_apps", z)
 }
@@ -605,14 +598,14 @@ func (r *Router) subscribeRegistry(subject string, successCallback func(*Registr
 
 		err := json.Unmarshal(payload, &msg)
 		if err != nil {
-			logMessage := fmt.Sprintf("%s: Error unmarshalling JSON (%d; %s): %s", subject, len(payload), payload, err)
-			r.logger.Info(logMessage, lager.Data{"payload": string(payload)})
+			//		logMessage := fmt.Sprintf("%s: Error unmarshalling JSON (%d; %s): %s", subject, len(payload), payload, err)
+			//			r.logger.Info(logMessage, lager.Data{"payload": string(payload)})
 			return
 		}
 
 		if !msg.ValidateMessage() {
-			logMessage := fmt.Sprintf("%s: Unable to validate message. route_service_url must be https", subject)
-			r.logger.Info(logMessage, lager.Data{"message": msg})
+			//	logMessage := fmt.Sprintf("%s: Unable to validate message. route_service_url must be https", subject)
+			//		r.logger.Info(logMessage, lager.Data{"message": msg})
 			return
 		}
 
@@ -621,7 +614,7 @@ func (r *Router) subscribeRegistry(subject string, successCallback func(*Registr
 
 	_, err := r.mbusClient.Subscribe(subject, callback)
 	if err != nil {
-		r.logger.Error(fmt.Sprintf("Error subscribing to %s ", subject), err)
+		//		r.logger.Error(fmt.Sprintf("Error subscribing to %s ", subject), err)
 	}
 }
 

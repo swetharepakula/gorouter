@@ -8,7 +8,6 @@ import (
 
 	"code.cloudfoundry.org/gorouter/common/secure"
 	"code.cloudfoundry.org/gorouter/common/uuid"
-	"code.cloudfoundry.org/lager"
 )
 
 const (
@@ -24,13 +23,13 @@ const (
 	CfAppInstance         = "X-CF-APP-INSTANCE"
 )
 
-func SetVcapRequestIdHeader(request *http.Request, logger lager.Logger) {
+func SetVcapRequestIdHeader(request *http.Request) {
 	guid, err := uuid.GenerateUUID()
 	if err == nil {
 		request.Header.Set(VcapRequestIdHeader, guid)
-		if logger != nil {
-			logger.Debug("vcap-request-id-header-set", lager.Data{VcapRequestIdHeader: guid})
-		}
+		// if logger != nil {
+		// 	logger.Debug("vcap-request-id-header-set", lager.Data{VcapRequestIdHeader: guid})
+		// }
 	}
 }
 
@@ -40,21 +39,21 @@ func SetTraceHeaders(responseWriter http.ResponseWriter, routerIp, addr string) 
 	responseWriter.Header().Set(CfRouteEndpointHeader, addr)
 }
 
-func SetB3Headers(request *http.Request, logger lager.Logger) {
+func SetB3Headers(request *http.Request) {
 	existingTraceId := request.Header.Get(B3TraceIdHeader)
 	existingSpanId := request.Header.Get(B3SpanIdHeader)
 	if existingTraceId != "" && existingSpanId != "" {
-		setB3SpanIdHeader(request, logger)
+		//		setB3SpanIdHeader(request, logger)
 		setB3ParentSpanIdHeader(request, existingSpanId)
-		if logger != nil {
-			logger.Debug("b3-trace-id-header-exists", lager.Data{B3TraceIdHeader: existingTraceId})
-		}
+		// if logger != nil {
+		// 	logger.Debug("b3-trace-id-header-exists", lager.Data{B3TraceIdHeader: existingTraceId})
+		// }
 		return
 	}
 
 	randBytes, err := secure.RandomBytes(8)
 	if err != nil {
-		logger.Info("failed-to-create-b3-trace-id", lager.Data{"error": err.Error()})
+		//		logger.Info("failed-to-create-b3-trace-id", lager.Data{"error": err.Error()})
 		return
 	}
 
@@ -67,15 +66,15 @@ func setB3ParentSpanIdHeader(request *http.Request, parentSpanID string) {
 	request.Header.Set(B3ParentSpanIdHeader, parentSpanID)
 }
 
-func setB3SpanIdHeader(request *http.Request, logger lager.Logger) {
-	randBytes, err := secure.RandomBytes(8)
-	if err != nil {
-		logger.Info("failed-to-create-b3-span-id", lager.Data{"error": err.Error()})
-		return
-	}
-	id := hex.EncodeToString(randBytes)
-	request.Header.Set(B3SpanIdHeader, id)
-}
+// func setB3SpanIdHeader(request *http.Request) {
+// 	randBytes, err := secure.RandomBytes(8)
+// 	// if err != nil {
+// 	// 	logger.Info("failed-to-create-b3-span-id", lager.Data{"error": err.Error()})
+// 	// 	return
+// 	// }
+// 	id := hex.EncodeToString(randBytes)
+// 	request.Header.Set(B3SpanIdHeader, id)
+// }
 
 func ValidateCfAppInstance(appInstanceHeader string) (string, string, error) {
 	appDetails := strings.Split(appInstanceHeader, ":")
