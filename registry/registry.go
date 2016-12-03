@@ -75,7 +75,7 @@ func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 		contextPath := parseContextPath(uri)
 		pool = route.NewPool(r.dropletStaleThreshold/4, contextPath)
 		r.byUri.Insert(uri, pool)
-		r.logger.Debug("uri-added", lager.Data{"uri": uri})
+		//		r.logger.Debug("uri-added", lager.Data{"uri": uri})
 	}
 
 	pool.Put(endpoint)
@@ -91,7 +91,7 @@ func (r *RouteRegistry) Register(uri route.Uri, endpoint *route.Endpoint) {
 }
 
 func (r *RouteRegistry) Unregister(uri route.Uri, endpoint *route.Endpoint) {
-	data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
+	//data := lager.Data{"uri": uri, "backend": endpoint.CanonicalAddr(), "modification_tag": endpoint.ModificationTag}
 
 	r.Lock()
 
@@ -101,9 +101,9 @@ func (r *RouteRegistry) Unregister(uri route.Uri, endpoint *route.Endpoint) {
 	if pool != nil {
 		endpointRemoved := pool.Remove(endpoint)
 		if endpointRemoved {
-			r.logger.Debug("endpoint-unregistered", data)
+			//		r.logger.Debug("endpoint-unregistered", data)
 		} else {
-			r.logger.Debug("endpoint-not-unregistered", data)
+			//		r.logger.Debug("endpoint-not-unregistered", data)
 		}
 
 		if pool.IsEmpty() {
@@ -154,9 +154,9 @@ func (r *RouteRegistry) StartPruningCycle() {
 			for {
 				select {
 				case <-r.ticker.C:
-					r.logger.Info("start-pruning-droplets")
+					//					r.logger.Info("start-pruning-droplets")
 					r.pruneStaleDroplets()
-					r.logger.Info("finished-pruning-droplets")
+					//				r.logger.Info("finished-pruning-droplets")
 				}
 			}
 		}()
@@ -208,16 +208,16 @@ func (r *RouteRegistry) pruneStaleDroplets() {
 
 	// suspend pruning if option enabled and if NATS is unavailable
 	if r.suspendPruning() {
-		r.logger.Info("prune-suspended")
+		//		r.logger.Info("prune-suspended")
 		r.pruningStatus = DISCONNECTED
 		return
 	} else {
 		if r.pruningStatus == DISCONNECTED {
 			// if we are coming back from being disconnected from source,
 			// bulk update routes / mark updated to avoid pruning right away
-			r.logger.Debug("prune-unsuspended-refresh-routes-start")
+			//		r.logger.Debug("prune-unsuspended-refresh-routes-start")
 			r.freshenRoutes()
-			r.logger.Debug("prune-unsuspended-refresh-routes-complete")
+			//		r.logger.Debug("prune-unsuspended-refresh-routes-complete")
 		}
 		r.pruningStatus = CONNECTED
 	}
@@ -230,7 +230,7 @@ func (r *RouteRegistry) pruneStaleDroplets() {
 			for _, e := range endpoints {
 				addresses = append(addresses, e.CanonicalAddr())
 			}
-			r.logger.Info("pruned-route", lager.Data{"uri": t.ToPath(), "endpoints": addresses})
+			//			r.logger.Info("pruned-route", lager.Data{"uri": t.ToPath(), "endpoints": addresses})
 		}
 	})
 }

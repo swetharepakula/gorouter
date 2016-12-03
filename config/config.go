@@ -81,7 +81,7 @@ type Tracing struct {
 }
 
 var defaultLoggingConfig = LoggingConfig{
-	Level:         "debug",
+	Level:         "error",
 	MetronAddress: "localhost:3457",
 }
 

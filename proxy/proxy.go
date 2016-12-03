@@ -9,11 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"code.cloudfoundry.org/gorouter/access_log"
-	"code.cloudfoundry.org/gorouter/access_log/schema"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
 	"code.cloudfoundry.org/gorouter/common/secure"
-	"code.cloudfoundry.org/gorouter/handlers"
 	"code.cloudfoundry.org/gorouter/proxy/handler"
 	"code.cloudfoundry.org/gorouter/proxy/round_tripper"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
@@ -42,7 +39,6 @@ type ProxyArgs struct {
 	Ip                         string
 	TraceKey                   string
 	Registry                   LookupRegistry
-	AccessLogger               access_log.AccessLogger
 	SecureCookies              bool
 	TLSConfig                  *tls.Config
 	RouteServiceEnabled        bool
@@ -125,7 +121,7 @@ func NewProxy(args ProxyArgs) Proxy {
 	n := negroni.New()
 	n.Use(&proxyWriterHandler{})
 	//	n.Use(handlers.NewAccessLog(args.AccessLogger, args.ExtraHeadersToLog))
-	n.Use(handlers.NewHealthcheck(args.HealthCheckUserAgent, p.heartbeatOK))
+	//	n.Use(handlers.NewHealthcheck(args.HealthCheckUserAgent, p.heartbeatOK))
 	//	n.Use(handlers.NewZipkin(args.EnableZipkin, args.ExtraHeadersToLog, args.Logger))
 
 	n.UseHandler(p)
@@ -185,7 +181,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 	if alr == nil {
 		//		p.logger.Error("AccessLogRecord not set on context", errors.New("failed-to-access-LogRecord"))
 	}
-	accessLog := alr.(*schema.AccessLogRecord)
+	//	accessLog := alr.(*schema.AccessLogRecord)
 
 	handler := handler.NewRequestHandler(request, proxyWriter)
 
@@ -207,7 +203,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 		afterNext: func(endpoint *route.Endpoint) {
 			if endpoint != nil {
 				//				handler.AddLoggingData(lager.Data{"route-endpoint": endpoint.ToLogData()})
-				accessLog.RouteEndpoint = endpoint
+				//				accessLog.RouteEndpoint = endpoint
 			}
 		},
 	}
@@ -265,9 +261,9 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 	}
 
 	after := func(rsp *http.Response, endpoint *route.Endpoint, err error) {
-		accessLog.FirstByteAt = time.Now()
+		//		accessLog.FirstByteAt = time.Now()
 		if rsp != nil {
-			accessLog.StatusCode = rsp.StatusCode
+			//		accessLog.StatusCode = rsp.StatusCode
 		}
 
 		if p.traceKey != "" && request.Header.Get(router_http.VcapTraceHeader) == p.traceKey {

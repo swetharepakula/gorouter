@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"runtime"
@@ -23,7 +24,7 @@ import (
 
 const RefreshInterval time.Duration = time.Second * 1
 
-var log lager.Logger
+//var log lager.Logger
 
 type ProcessStatus struct {
 	sync.RWMutex
@@ -116,7 +117,7 @@ func (c *VcapComponent) UpdateVarz() {
 func (c *VcapComponent) Start() error {
 	if c.Varz.Type == "" {
 		err := errors.New("type is required")
-		log.Error("Component type is required", err)
+		//		log.Error("Component type is required", err)
 		return err
 	}
 
@@ -131,13 +132,13 @@ func (c *VcapComponent) Start() error {
 	if c.Varz.Host == "" {
 		host, err := localip.LocalIP()
 		if err != nil {
-			log.Error("error-getting-localIP", err)
+			//		log.Error("error-getting-localIP", err)
 			return err
 		}
 
 		port, err := localip.LocalPort()
 		if err != nil {
-			log.Error("error-getting-localPort", err)
+			//		log.Error("error-getting-localPort", err)
 			return err
 		}
 
@@ -157,9 +158,9 @@ func (c *VcapComponent) Start() error {
 		c.Varz.Credentials = []string{user, password}
 	}
 
-	if c.Logger != nil {
-		log = c.Logger
-	}
+	// if c.Logger != nil {
+	// 	log = c.Logger
+	// }
 
 	c.Varz.NumCores = runtime.NumCPU()
 
@@ -172,14 +173,14 @@ func (c *VcapComponent) Start() error {
 func (c *VcapComponent) Register(mbusClient *nats.Conn) error {
 	mbusClient.Subscribe("vcap.component.discover", func(msg *nats.Msg) {
 		if msg.Reply == "" {
-			log.Info(fmt.Sprintf("Received message with empty reply on subject %s", msg.Subject))
+			//	log.Info(fmt.Sprintf("Received message with empty reply on subject %s", msg.Subject))
 			return
 		}
 
 		c.Varz.Uptime = c.Varz.StartTime.Elapsed()
 		b, e := json.Marshal(c.Varz)
 		if e != nil {
-			log.Error("error-json-marshaling", e)
+			//	log.Error("error-json-marshaling", e)
 			return
 		}
 
@@ -188,13 +189,13 @@ func (c *VcapComponent) Register(mbusClient *nats.Conn) error {
 
 	b, e := json.Marshal(c.Varz)
 	if e != nil {
-		log.Error("error-json-marshaling", e)
+		//	log.Error("error-json-marshaling", e)
 		return e
 	}
 
 	mbusClient.Publish("vcap.component.announce", b)
 
-	log.Info(fmt.Sprintf("Component %s registered successfully", c.Varz.Type))
+	//	log.Info(fmt.Sprintf("Component %s registered successfully", c.Varz.Type))
 	return nil
 }
 

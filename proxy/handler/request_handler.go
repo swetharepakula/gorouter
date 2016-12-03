@@ -11,11 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"code.cloudfoundry.org/gorouter/access_log/schema"
 	router_http "code.cloudfoundry.org/gorouter/common/http"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
 	"code.cloudfoundry.org/gorouter/route"
-	"code.cloudfoundry.org/lager"
 )
 
 const (
@@ -25,8 +23,6 @@ const (
 var NoEndpointsAvailable = errors.New("No endpoints available")
 
 type RequestHandler struct {
-	logrecord *schema.AccessLogRecord
-
 	request  *http.Request
 	response utils.ProxyResponseWriter
 }
@@ -38,15 +34,15 @@ func NewRequestHandler(request *http.Request, response utils.ProxyResponseWriter
 	}
 }
 
-func setupLogger(request *http.Request, logger lager.Logger) lager.Logger {
-	return logger.Session("request-handler", lager.Data{
-		"RemoteAddr":        request.RemoteAddr,
-		"Host":              request.Host,
-		"Path":              request.URL.Path,
-		"X-Forwarded-For":   request.Header["X-Forwarded-For"],
-		"X-Forwarded-Proto": request.Header["X-Forwarded-Proto"],
-	})
-}
+// func setupLogger(request *http.Request, logger lager.Logger) lager.Logger {
+// 	return logger.Session("request-handler", lager.Data{
+// 		"RemoteAddr":        request.RemoteAddr,
+// 		"Host":              request.Host,
+// 		"Path":              request.URL.Path,
+// 		"X-Forwarded-For":   request.Header["X-Forwarded-For"],
+// 		"X-Forwarded-Proto": request.Header["X-Forwarded-Proto"],
+// 	})
+// }
 
 // func (h *RequestHandler) Logger() lager.Logger {
 // 	return h.logger
@@ -61,11 +57,11 @@ func (h *RequestHandler) HandleHeartbeat(ok bool) {
 	h.response.Header().Set("Cache-Control", "private, max-age=0")
 	h.response.Header().Set("Expires", "0")
 	if ok {
-		h.logrecord.StatusCode = http.StatusOK
+		//		h.logrecord.StatusCode = http.StatusOK
 		h.response.WriteHeader(http.StatusOK)
 		h.response.Write([]byte("ok\n"))
 	} else {
-		h.logrecord.StatusCode = http.StatusServiceUnavailable
+		//		h.logrecord.StatusCode = http.StatusServiceUnavailable
 		h.response.WriteHeader(http.StatusServiceUnavailable)
 	}
 	h.request.Close = true
@@ -79,7 +75,7 @@ func (h *RequestHandler) HandleUnsupportedProtocol() {
 		return
 	}
 
-	h.logrecord.StatusCode = http.StatusBadRequest
+	//	h.logrecord.StatusCode = http.StatusBadRequest
 	fmt.Fprintf(buf, "HTTP/1.0 400 Bad Request\r\n\r\n")
 	buf.Flush()
 	conn.Close()
@@ -126,7 +122,7 @@ func (h *RequestHandler) HandleUnsupportedRouteService() {
 func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
 	//	h.logger.Info("handling-tcp-request", lager.Data{"Upgrade": "tcp"})
 
-	h.logrecord.StatusCode = http.StatusSwitchingProtocols
+	//h.logrecord.StatusCode = http.StatusSwitchingProtocols
 
 	err := h.serveTcp(iter)
 	if err != nil {
@@ -138,7 +134,7 @@ func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
 func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {
 	//	h.logger.Info("handling-websocket-request", lager.Data{"Upgrade": "websocket"})
 
-	h.logrecord.StatusCode = http.StatusSwitchingProtocols
+	//	h.logrecord.StatusCode = http.StatusSwitchingProtocols
 
 	err := h.serveWebSocket(iter)
 	if err != nil {
@@ -151,7 +147,7 @@ func (h *RequestHandler) writeStatus(code int, message string) {
 	body := fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message)
 
 	//	h.logger.Info("status", lager.Data{"body": body})
-	h.logrecord.StatusCode = code
+	//	h.logrecord.StatusCode = code
 
 	http.Error(h.response, body, code)
 	if code > 299 {
