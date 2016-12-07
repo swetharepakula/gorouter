@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/clock/fakeclock"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 
 	"code.cloudfoundry.org/gorouter/config"
 	testRegistry "code.cloudfoundry.org/gorouter/registry/fakes"
@@ -21,6 +19,7 @@ import (
 	metrics_fakes "github.com/cloudfoundry/dropsonde/metric_sender/fake"
 	"github.com/cloudfoundry/dropsonde/metrics"
 	"github.com/tedsuo/ifrit"
+	"github.com/uber-go/zap"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -40,7 +39,7 @@ var _ = Describe("RouteFetcher", func() {
 		uaaClient   *testUaaClient.FakeClient
 		registry    *testRegistry.FakeRegistryInterface
 		fetcher     *RouteFetcher
-		logger      lager.Logger
+		logger      zap.Logger
 		client      *fake_routing_api.FakeClient
 		eventSource *fake_routing_api.FakeEventSource
 
@@ -55,7 +54,7 @@ var _ = Describe("RouteFetcher", func() {
 	)
 
 	BeforeEach(func() {
-		logger = lagertest.NewTestLogger("test")
+		logger = zap.New(zap.NullEncoder())
 		cfg = config.DefaultConfig()
 		cfg.PruneStaleDropletsInterval = 2 * time.Millisecond
 

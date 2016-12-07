@@ -5,15 +5,16 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/uber-go/zap"
+
 	"code.cloudfoundry.org/gorouter/proxy/handler"
 	"code.cloudfoundry.org/gorouter/route"
-	"code.cloudfoundry.org/lager"
 )
 
 type AfterRoundTrip func(rsp *http.Response, endpoint *route.Endpoint, err error)
 
 func NewProxyRoundTripper(backend bool, transport http.RoundTripper, endpointIterator route.EndpointIterator,
-	logger lager.Logger, afterRoundTrip AfterRoundTrip) http.RoundTripper {
+	logger zap.Logger, afterRoundTrip AfterRoundTrip) http.RoundTripper {
 	if backend {
 		return &BackendRoundTripper{
 			transport: transport,
@@ -33,7 +34,7 @@ func NewProxyRoundTripper(backend bool, transport http.RoundTripper, endpointIte
 type BackendRoundTripper struct {
 	iter      route.EndpointIterator
 	transport http.RoundTripper
-	logger    lager.Logger
+	logger    zap.Logger
 	after     AfterRoundTrip
 }
 
@@ -74,7 +75,7 @@ func (rt *BackendRoundTripper) RoundTrip(request *http.Request) (*http.Response,
 	}
 
 	if err != nil {
-		rt.logger.Error("endpoint-failed", err)
+		rt.logger.Error("endpoint-failed", zap.Error(err))
 	}
 
 	if rt.after != nil {
@@ -90,7 +91,7 @@ func (rt *BackendRoundTripper) selectEndpoint(request *http.Request) (*route.End
 		return nil, handler.NoEndpointsAvailable
 	}
 
-	rt.logger = rt.logger.WithData(lager.Data{"route-endpoint": endpoint.ToLogData()})
+	rt.logger = rt.logger.With(zap.Object("route-endpoint", endpoint.ToLogData()))
 	return endpoint, nil
 }
 
@@ -103,13 +104,13 @@ func (rt *BackendRoundTripper) setupRequest(request *http.Request, endpoint *rou
 
 func (rt *BackendRoundTripper) reportError(err error) {
 	rt.iter.EndpointFailed()
-	rt.logger.Error("backend-endpoint-failed", err)
+	rt.logger.Error("backend-endpoint-failed", zap.Error(err))
 }
 
 type RouteServiceRoundTripper struct {
 	transport http.RoundTripper
 	after     AfterRoundTrip
-	logger    lager.Logger
+	logger    zap.Logger
 }
 
 func (rt *RouteServiceRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -134,7 +135,7 @@ func (rt *RouteServiceRoundTripper) RoundTrip(request *http.Request) (*http.Resp
 }
 
 func (rs *RouteServiceRoundTripper) reportError(err error) {
-	rs.logger.Error("route-service-failed", err)
+	rs.logger.Error("route-service-failed", zap.Error(err))
 }
 
 func retryableError(err error) bool {

@@ -23,17 +23,16 @@ import (
 	"code.cloudfoundry.org/gorouter/test/common"
 	"code.cloudfoundry.org/gorouter/test_util"
 	vvarz "code.cloudfoundry.org/gorouter/varz"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/nats-io/nats"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
+	"github.com/uber-go/zap"
 )
 
 var _ = Describe("Router", func() {
 	var (
-		logger     lager.Logger
+		logger     zap.Logger
 		natsRunner *test_util.NATSRunner
 		config     *cfg.Config
 		p          proxy.Proxy
@@ -185,7 +184,7 @@ var _ = Describe("Router", func() {
 	}
 
 	BeforeEach(func() {
-		logger = lagertest.NewTestLogger("test")
+		logger = zap.New(zap.NullEncoder())
 		natsPort = test_util.NextAvailPort()
 		natsRunner = test_util.NewNATSRunner(int(natsPort))
 		natsRunner.Start()

@@ -9,12 +9,12 @@ import (
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/gorouter/route"
-	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/routing-api"
 	"code.cloudfoundry.org/routing-api/models"
 	uaa_client "code.cloudfoundry.org/uaa-go-client"
 	"code.cloudfoundry.org/uaa-go-client/schema"
 	"github.com/cloudfoundry/dropsonde/metrics"
+	"github.com/uber-go/zap"
 )
 
 type RouteFetcher struct {
@@ -23,7 +23,7 @@ type RouteFetcher struct {
 	FetchRoutesInterval                time.Duration
 	SubscriptionRetryIntervalInSeconds int
 
-	logger          lager.Logger
+	logger          zap.Logger
 	endpoints       []models.Route
 	client          routing_api.Client
 	stopEventSource int32
@@ -39,7 +39,7 @@ const (
 	maxRetries            = 3
 )
 
-func NewRouteFetcher(logger lager.Logger, uaaClient uaa_client.Client, routeRegistry registry.RegistryInterface,
+func NewRouteFetcher(logger zap.Logger, uaaClient uaa_client.Client, routeRegistry registry.RegistryInterface,
 	cfg *config.Config, client routing_api.Client, subscriptionRetryInterval int, clock clock.Clock) *RouteFetcher {
 	return &RouteFetcher{
 		UaaClient:                          uaaClient,
@@ -58,7 +58,7 @@ func (r *RouteFetcher) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 	r.startEventCycle()
 
 	ticker := r.clock.NewTicker(r.FetchRoutesInterval)
-	r.logger.Debug("created-ticker", lager.Data{"interval": r.FetchRoutesInterval})
+	r.logger.Debug("created-ticker", zap.Duration("interval", r.FetchRoutesInterval))
 	r.logger.Info("syncer-started")
 
 	close(ready)
@@ -67,7 +67,7 @@ func (r *RouteFetcher) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 		case <-ticker.C():
 			err := r.FetchRoutes()
 			if err != nil {
-				r.logger.Error("Failed to fetch routes: ", err)
+				r.logger.Error("Failed to fetch routes: ", zap.Error(err))
 			}
 		case e := <-r.eventChannel:
 			r.HandleEvent(e)
@@ -78,7 +78,7 @@ func (r *RouteFetcher) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 			if es := r.eventSource.Load(); es != nil {
 				err := es.(routing_api.EventSource).Close()
 				if err != nil {
-					r.logger.Error("Failed to close routing_api EventSource: ", err)
+					r.logger.Error("Failed to close routing_api EventSource: ", zap.Error(err))
 				}
 			}
 			ticker.Stop()
@@ -95,7 +95,7 @@ func (r *RouteFetcher) startEventCycle() {
 			token, err := r.UaaClient.FetchToken(forceUpdate)
 			if err != nil {
 				metrics.IncrementCounter(TokenFetchErrors)
-				r.logger.Error("failed-to-fetch-token", err)
+				r.logger.Error("failed-to-fetch-token", zap.Error(err))
 			} else {
 				r.logger.Debug("token-fetched-successfully")
 				if atomic.LoadInt32(&r.stopEventSource) == 1 {
@@ -123,14 +123,14 @@ func (r *RouteFetcher) subscribeToEvents(token *schema.Token) error {
 	source, err := r.client.SubscribeToEventsWithMaxRetries(maxRetries)
 	if err != nil {
 		metrics.IncrementCounter(SubscribeEventsErrors)
-		r.logger.Error("Failed-to-subscribe-to-routing-api-event-stream: ", err)
+		r.logger.Error("Failed-to-subscribe-to-routing-api-event-stream: ", zap.Error(err))
 		return err
 	}
 	r.logger.Info("Successfully-subscribed-to-routing-api-event-stream")
 
 	err = r.FetchRoutes()
 	if err != nil {
-		r.logger.Error("failed-to-refresh-routes", err)
+		r.logger.Error("failed-to-refresh-routes", zap.Error(err))
 	}
 
 	r.eventSource.Store(source)
@@ -140,15 +140,15 @@ func (r *RouteFetcher) subscribeToEvents(token *schema.Token) error {
 		event, err = source.Next()
 		if err != nil {
 			metrics.IncrementCounter(SubscribeEventsErrors)
-			r.logger.Error("Failed to get next event: ", err)
+			r.logger.Error("Failed to get next event: ", zap.Error(err))
 
 			closeErr := source.Close()
 			if closeErr != nil {
-				r.logger.Error("failed-to-close-event-source", closeErr)
+				r.logger.Error("failed-to-close-event-source", zap.Error(closeErr))
 			}
 			break
 		}
-		r.logger.Debug("received-event", lager.Data{"event": event})
+		r.logger.Debug("received-event", zap.Object("event", event))
 		r.eventChannel <- event
 	}
 	return err
@@ -185,7 +185,7 @@ func (r *RouteFetcher) FetchRoutes() error {
 		return err
 	}
 
-	r.logger.Debug("syncer-refreshing-endpoints", lager.Data{"number-of-routes": len(routes)})
+	r.logger.Debug("syncer-refreshing-endpoints", zap.Int("number-of-routes", len(routes)))
 	r.refreshEndpoints(routes)
 	return nil
 }

@@ -5,9 +5,8 @@ import (
 	"code.cloudfoundry.org/gorouter/common/health"
 	"code.cloudfoundry.org/gorouter/test_util"
 	"github.com/nats-io/nats"
+	"github.com/uber-go/zap"
 
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"code.cloudfoundry.org/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -153,7 +152,7 @@ var _ = Describe("Component", func() {
 	Describe("Register", func() {
 		var mbusClient *nats.Conn
 		var natsRunner *test_util.NATSRunner
-		var logger lager.Logger
+		var logger zap.Logger
 
 		BeforeEach(func() {
 			natsPort := test_util.NextAvailPort()
@@ -161,7 +160,7 @@ var _ = Describe("Component", func() {
 			natsRunner.Start()
 			mbusClient = natsRunner.MessageBus
 
-			logger = lagertest.NewTestLogger("test")
+			logger = zap.New(zap.NewJSONEncoder())
 		})
 
 		AfterEach(func() {

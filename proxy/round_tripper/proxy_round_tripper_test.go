@@ -13,11 +13,10 @@ import (
 	routefakes "code.cloudfoundry.org/gorouter/route/fakes"
 	"code.cloudfoundry.org/gorouter/routeservice"
 	"code.cloudfoundry.org/gorouter/test_util"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/uber-go/zap"
 )
 
 type nullVarz struct{}
@@ -28,7 +27,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 			proxyRoundTripper http.RoundTripper
 			endpointIterator  *routefakes.FakeEndpointIterator
 			transport         *roundtripperfakes.FakeRoundTripper
-			logger            lager.Logger
+			logger            zap.Logger
 			req               *http.Request
 			resp              *proxyfakes.FakeProxyResponseWriter
 			dialError         = &net.OpError{
@@ -44,7 +43,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 			req.URL.Scheme = "http"
 			resp = &proxyfakes.FakeProxyResponseWriter{}
 
-			logger = lagertest.NewTestLogger("test")
+			logger = zap.New(zap.NullEncoder())
 			transport = &roundtripperfakes.FakeRoundTripper{}
 		})
 

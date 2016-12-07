@@ -10,11 +10,10 @@ import (
 	"code.cloudfoundry.org/gorouter/config"
 	"code.cloudfoundry.org/gorouter/route"
 	"code.cloudfoundry.org/gorouter/test_util"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"code.cloudfoundry.org/routing-api/models"
 	"github.com/cloudfoundry/dropsonde/log_sender/fake"
 	"github.com/cloudfoundry/dropsonde/logs"
+	"github.com/uber-go/zap"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,12 +27,12 @@ var _ = Describe("AccessLog", func() {
 
 	Describe("FileLogger", func() {
 		var (
-			logger lager.Logger
+			logger zap.Logger
 		)
 		Context("with a dropsonde source instance", func() {
 
 			BeforeEach(func() {
-				logger = lagertest.NewTestLogger("test")
+				logger = zap.New(zap.NullEncoder())
 
 			})
 			It("logs to dropsonde", func() {
@@ -123,12 +122,12 @@ var _ = Describe("AccessLog", func() {
 
 	Describe("FileLogger", func() {
 		var (
-			logger lager.Logger
+			logger zap.Logger
 			cfg    *config.Config
 		)
 
 		BeforeEach(func() {
-			logger = lagertest.NewTestLogger("test")
+			logger = zap.New(zap.NullEncoder())
 
 			cfg = config.DefaultConfig()
 		})

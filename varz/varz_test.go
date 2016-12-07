@@ -6,11 +6,10 @@ import (
 	"code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/gorouter/route"
 	. "code.cloudfoundry.org/gorouter/varz"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"code.cloudfoundry.org/routing-api/models"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/uber-go/zap"
 
 	"encoding/json"
 	"fmt"
@@ -21,10 +20,10 @@ import (
 var _ = Describe("Varz", func() {
 	var Varz Varz
 	var Registry *registry.RouteRegistry
-	var logger lager.Logger
+	var logger zap.Logger
 
 	BeforeEach(func() {
-		logger = lagertest.NewTestLogger("test")
+		logger = zap.New(zap.NullEncoder())
 		Registry = registry.NewRouteRegistry(logger, config.DefaultConfig(), new(fakes.FakeRouteRegistryReporter))
 		Varz = NewVarz(Registry)
 	})

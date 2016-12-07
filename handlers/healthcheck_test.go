@@ -9,17 +9,16 @@ import (
 	"code.cloudfoundry.org/gorouter/handlers"
 	"code.cloudfoundry.org/gorouter/proxy/utils"
 	"code.cloudfoundry.org/gorouter/test_util"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/uber-go/zap"
 	"github.com/urfave/negroni"
 )
 
 var _ = Describe("Healthcheck", func() {
 	var (
 		handler     negroni.Handler
-		logger      lager.Logger
+		logger      zap.Logger
 		resp        *httptest.ResponseRecorder
 		proxyWriter utils.ProxyResponseWriter
 		req         *http.Request
@@ -94,7 +93,7 @@ var _ = Describe("Healthcheck", func() {
 	}
 
 	BeforeEach(func() {
-		logger = lagertest.NewTestLogger("zipkin")
+		logger = zap.New(zap.NewJSONEncoder())
 		req = test_util.NewRequest("GET", "example.com", "/", nil)
 		resp = httptest.NewRecorder()
 		proxyWriter = utils.NewProxyResponseWriter(resp)

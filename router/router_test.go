@@ -24,6 +24,7 @@ import (
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/sigmon"
+	"github.com/uber-go/zap"
 
 	"bufio"
 	"bytes"
@@ -38,8 +39,6 @@ import (
 
 	"code.cloudfoundry.org/gorouter/metrics/reporter/fakes"
 	testcommon "code.cloudfoundry.org/gorouter/test/common"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 )
 
 var _ = Describe("Router", func() {
@@ -55,7 +54,7 @@ var _ = Describe("Router", func() {
 		registry   *rregistry.RouteRegistry
 		varz       vvarz.Varz
 		router     *Router
-		logger     lager.Logger
+		logger     zap.Logger
 		statusPort uint16
 	)
 
@@ -83,7 +82,7 @@ var _ = Describe("Router", func() {
 		config.PidFile = f.Name()
 
 		mbusClient = natsRunner.MessageBus
-		logger = lagertest.NewTestLogger("router-test")
+		logger = zap.New(zap.NullEncoder())
 		registry = rregistry.NewRouteRegistry(logger, config, new(fakes.FakeRouteRegistryReporter))
 		varz = vvarz.NewVarz(registry)
 		proxy := proxy.NewProxy(proxy.ProxyArgs{

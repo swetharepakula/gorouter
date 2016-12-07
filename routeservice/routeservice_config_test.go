@@ -11,10 +11,9 @@ import (
 	"code.cloudfoundry.org/gorouter/common/secure/fakes"
 	"code.cloudfoundry.org/gorouter/routeservice"
 	"code.cloudfoundry.org/gorouter/routeservice/header"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/uber-go/zap"
 )
 
 var _ = Describe("Route Service Config", func() {
@@ -23,7 +22,7 @@ var _ = Describe("Route Service Config", func() {
 		crypto         secure.Crypto
 		cryptoPrev     secure.Crypto
 		cryptoKey      = "ABCDEFGHIJKLMNOP"
-		logger         lager.Logger
+		logger         zap.Logger
 		recommendHttps bool
 	)
 
@@ -31,7 +30,7 @@ var _ = Describe("Route Service Config", func() {
 		var err error
 		crypto, err = secure.NewAesGCM([]byte(cryptoKey))
 		Expect(err).ToNot(HaveOccurred())
-		logger = lagertest.NewTestLogger("test")
+		logger = zap.New(zap.NullEncoder())
 		config = routeservice.NewRouteServiceConfig(logger, true, 1*time.Hour, crypto, cryptoPrev, recommendHttps)
 	})
 

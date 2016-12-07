@@ -1,16 +1,15 @@
 package config_test
 
 import (
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/uber-go/zap"
 
 	"testing"
 )
 
 var (
-	logger lager.Logger
+	logger zap.Logger
 )
 
 func TestConfig(t *testing.T) {
@@ -19,5 +18,5 @@ func TestConfig(t *testing.T) {
 }
 
 var _ = BeforeEach(func() {
-	logger = lagertest.NewTestLogger("test")
+	logger = zap.New(zap.NewJSONEncoder())
 })

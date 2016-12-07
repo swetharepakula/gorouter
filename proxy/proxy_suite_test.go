@@ -12,10 +12,9 @@ import (
 	"code.cloudfoundry.org/gorouter/proxy"
 	"code.cloudfoundry.org/gorouter/registry"
 	"code.cloudfoundry.org/gorouter/test_util"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/dropsonde/emitter/fake"
+	"github.com/uber-go/zap"
 
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ var (
 	accessLog      access_log.AccessLogger
 	accessLogFile  *test_util.FakeFile
 	crypto         secure.Crypto
-	logger         lager.Logger
+	logger         zap.Logger
 	cryptoPrev     secure.Crypto
 	caCertPool     *x509.CertPool
 	recommendHttps bool
@@ -47,7 +46,7 @@ func TestProxy(t *testing.T) {
 }
 
 var _ = BeforeEach(func() {
-	logger = lagertest.NewTestLogger("test")
+	logger = zap.New(zap.NullEncoder())
 	var err error
 
 	crypto, err = secure.NewAesGCM([]byte("ABCDEFGHIJKLMNOP"))

@@ -13,8 +13,7 @@ import (
 )
 
 func BenchmarkRegistry(b *testing.B) {
-	logger := zap.New(zap.NullEncoder())
-
+	logger := zap.New(zap.NewJSONEncoder(), zap.InfoLevel)
 	configObj := config.DefaultConfig()
 	configObj.PruneStaleDropletsInterval = 50 * time.Millisecond
 	configObj.DropletStaleThreshold = 24 * time.Millisecond
