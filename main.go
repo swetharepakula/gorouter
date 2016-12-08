@@ -8,7 +8,6 @@ import (
 
 	"code.cloudfoundry.org/cflager"
 	"code.cloudfoundry.org/clock"
-	"code.cloudfoundry.org/debugserver"
 	"code.cloudfoundry.org/gorouter/access_log"
 	"code.cloudfoundry.org/gorouter/common/schema"
 	"code.cloudfoundry.org/gorouter/common/secure"
@@ -64,11 +63,12 @@ func main() {
 		c = config.InitConfigFromFile(configFile)
 	}
 
-	prefix := "gorouter.stdout"
-	if c.Logging.Syslog != "" {
-		prefix = c.Logging.Syslog
-	}
-	logger, reconfigurableSink := cflager.New(prefix)
+	// prefix := "gorouter.stdout"
+	// if c.Logging.Syslog != "" {
+	// 	prefix = c.Logging.Syslog
+	// }
+	// logger, reconfigurableSink := cflager.New(prefix)
+	logger := &NullLogger{}
 	InitLoggerFromConfig(logger, c, logCounter)
 
 	logger.Info("starting")
@@ -83,9 +83,9 @@ func main() {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
 	}
 
-	if c.DebugAddr != "" {
-		debugserver.Run(c.DebugAddr, reconfigurableSink)
-	}
+	// if c.DebugAddr != "" {
+	// 	debugserver.Run(c.DebugAddr, reconfigurableSink)
+	// }
 
 	logger.Info("setting-up-nats-connection")
 	startMsgChan := make(chan struct{})
@@ -353,4 +353,21 @@ func createSubscriber(
 		PruneThresholdInSeconds:          int(c.DropletStaleThreshold.Seconds()),
 	}
 	return mbus.NewSubscriber(logger.Session("subscriber"), natsClient, registry, startMsgChan, opts)
+}
+
+type NullLogger struct{}
+
+func (n *NullLogger) RegisterSink(lager.Sink) {}
+func (n *NullLogger) Session(task string, data ...lager.Data) lager.Logger {
+	return n
+}
+func (n *NullLogger) SessionName() string {
+	return ""
+}
+func (n *NullLogger) Debug(action string, data ...lager.Data)            {}
+func (n *NullLogger) Info(action string, data ...lager.Data)             {}
+func (n *NullLogger) Error(action string, err error, data ...lager.Data) {}
+func (n *NullLogger) Fatal(action string, err error, data ...lager.Data) {}
+func (n *NullLogger) WithData(lager.Data) lager.Logger {
+	return n
 }
