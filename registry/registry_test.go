@@ -250,6 +250,13 @@ var _ = Describe("RouteRegistry", func() {
 			})
 
 		})
+
+		Context("Load Balancing Algorithm", func() {
+			It("sets that load balancing algorithm", func() {
+				r.Register("foo", fooEndpoint)
+				p := r.Lookup("foo.com")
+			})
+		})
 	})
 
 	Context("Unregister", func() {

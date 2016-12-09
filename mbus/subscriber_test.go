@@ -203,8 +203,9 @@ var _ = Describe("Subscriber", func() {
 				PrivateInstanceIndex: "index",
 				Port:                 1111,
 				StaleThresholdInSeconds: 120,
-				Uris: []route.Uri{"test.example.com", "test2.example.com"},
-				Tags: map[string]string{"key": "value"},
+				Uris:             []route.Uri{"test.example.com", "test2.example.com"},
+				Tags:             map[string]string{"key": "value"},
+				LoadBalancingAlg: "round-robin",
 			}
 
 			data, err := json.Marshal(msg)
@@ -215,7 +216,7 @@ var _ = Describe("Subscriber", func() {
 
 			Eventually(registry.RegisterCallCount).Should(Equal(2))
 			for i := 0; i < registry.RegisterCallCount(); i++ {
-				uri, endpoint := registry.RegisterArgsForCall(i)
+				uri, endpoint, loadBalancingAlg := registry.RegisterArgsForCall(i)
 
 				Expect(msg.Uris).To(ContainElement(uri))
 				Expect(endpoint.ApplicationId).To(Equal(msg.App))
@@ -224,6 +225,7 @@ var _ = Describe("Subscriber", func() {
 				Expect(endpoint.PrivateInstanceIndex).To(Equal(msg.PrivateInstanceIndex))
 				Expect(endpoint.RouteServiceUrl).To(Equal(msg.RouteServiceURL))
 				Expect(endpoint.CanonicalAddr()).To(ContainSubstring(msg.Host))
+				Expect(loadBalancingAlg).To(Equal("round-robin"))
 			}
 		})
 

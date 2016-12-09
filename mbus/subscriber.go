@@ -27,6 +27,7 @@ type RegistryMessage struct {
 	RouteServiceURL         string            `json:"route_service_url"`
 	PrivateInstanceID       string            `json:"private_instance_id"`
 	PrivateInstanceIndex    string            `json:"private_instance_index"`
+	LoadBalancingAlg        string            `json:"round-robin"`
 }
 
 func (rm *RegistryMessage) makeEndpoint() *route.Endpoint {
