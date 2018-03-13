@@ -1,6 +1,7 @@
 package round_tripper
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -43,6 +44,7 @@ func NewProxyRoundTripper(
 	combinedReporter metrics.CombinedReporter,
 	secureCookies bool,
 	localPort uint16,
+	endpointTimeout time.Duration,
 ) ProxyRoundTripper {
 	return &roundTripper{
 		logger:             logger,
@@ -53,6 +55,7 @@ func NewProxyRoundTripper(
 		combinedReporter:   combinedReporter,
 		secureCookies:      secureCookies,
 		localPort:          localPort,
+		endpointTimeout:    endpointTimeout,
 	}
 }
 
@@ -65,6 +68,7 @@ type roundTripper struct {
 	combinedReporter   metrics.CombinedReporter
 	secureCookies      bool
 	localPort          uint16
+	endpointTimeout    time.Duration
 }
 
 func (rt *roundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -129,7 +133,7 @@ func (rt *roundTripper) RoundTrip(request *http.Request) (*http.Response, error)
 				request.URL.Host = fmt.Sprintf("localhost:%d", rt.localPort)
 			}
 
-			res, err = rt.transport.RoundTrip(request)
+			res, err = rt.timedRoundTrip(request)
 			if err == nil {
 				if res != nil && (res.StatusCode < 200 || res.StatusCode >= 300) {
 					logger.Info(
@@ -204,11 +208,37 @@ func (rt *roundTripper) backendRoundTrip(
 	iter.PreRequest(endpoint)
 
 	rt.combinedReporter.CaptureRoutingRequest(endpoint)
-	res, err := rt.transport.RoundTrip(request)
+	res, err := rt.timedRoundTrip(request)
 
 	// decrement connection stats
 	iter.PostRequest(endpoint)
 	return res, err
+}
+
+func (rt *roundTripper) timedRoundTrip(request *http.Request) (*http.Response, error) {
+	if rt.endpointTimeout <= 0 {
+		return rt.transport.RoundTrip(request)
+	}
+
+	errored := make(chan struct{}, 1)
+	reqCtx, cancel := context.WithTimeout(request.Context(), rt.endpointTimeout)
+	go func() {
+		defer cancel()
+		select {
+		case <-reqCtx.Done():
+		case <-errored:
+		}
+	}()
+
+	request = request.WithContext(reqCtx)
+
+	resp, err := rt.transport.RoundTrip(request)
+	if err != nil {
+		cancel()
+		errored <- struct{}{}
+	}
+
+	return resp, err
 }
 
 func (rt *roundTripper) selectEndpoint(iter route.EndpointIterator, request *http.Request) (*route.Endpoint, error) {

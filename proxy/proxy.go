@@ -77,16 +77,7 @@ func NewProxy(
 	}
 
 	httpTransport := &http.Transport{
-		Dial: func(network, addr string) (net.Conn, error) {
-			conn, err := net.DialTimeout(network, addr, 5*time.Second)
-			if err != nil {
-				return conn, err
-			}
-			if c.EndpointTimeout > 0 {
-				err = conn.SetDeadline(time.Now().Add(c.EndpointTimeout))
-			}
-			return conn, err
-		},
+		Dial:                (&net.Dialer{Timeout: 5 * time.Second}).Dial,
 		DisableKeepAlives:   c.DisableKeepAlives,
 		MaxIdleConns:        c.MaxIdleConns,
 		IdleConnTimeout:     90 * time.Second, // setting the value to golang default transport
@@ -97,7 +88,7 @@ func NewProxy(
 
 	rproxy := &httputil.ReverseProxy{
 		Director:       p.setupProxyRequest,
-		Transport:      p.proxyRoundTripper(httpTransport, c.Port),
+		Transport:      p.proxyRoundTripper(httpTransport, c.Port, c.EndpointTimeout),
 		FlushInterval:  50 * time.Millisecond,
 		BufferPool:     p.bufferPool,
 		ModifyResponse: p.modifyResponse,
@@ -134,12 +125,12 @@ func hostWithoutPort(req *http.Request) string {
 	return host
 }
 
-func (p *proxy) proxyRoundTripper(transport round_tripper.ProxyRoundTripper, port uint16) round_tripper.ProxyRoundTripper {
+func (p *proxy) proxyRoundTripper(transport round_tripper.ProxyRoundTripper, port uint16, endpointTimeout time.Duration) round_tripper.ProxyRoundTripper {
 	return round_tripper.NewProxyRoundTripper(
 		round_tripper.NewDropsondeRoundTripper(transport),
 		p.logger, p.traceKey, p.ip, p.defaultLoadBalance,
 		p.reporter, p.secureCookies,
-		port,
+		port, endpointTimeout,
 	)
 }
 
