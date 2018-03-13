@@ -1,11 +1,13 @@
 package round_tripper
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/uber-go/zap"
 
@@ -42,6 +44,7 @@ func NewProxyRoundTripper(
 	defaultLoadBalance string,
 	combinedReporter metrics.CombinedReporter,
 	secureCookies bool,
+	endpointTimeout time.Duration,
 ) ProxyRoundTripper {
 	return &roundTripper{
 		logger:             logger,
@@ -51,6 +54,7 @@ func NewProxyRoundTripper(
 		defaultLoadBalance: defaultLoadBalance,
 		combinedReporter:   combinedReporter,
 		secureCookies:      secureCookies,
+		endpointTimeout:    endpointTimeout,
 	}
 }
 
@@ -62,6 +66,7 @@ type roundTripper struct {
 	defaultLoadBalance string
 	combinedReporter   metrics.CombinedReporter
 	secureCookies      bool
+	endpointTimeout    time.Duration
 }
 
 func (rt *roundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -129,7 +134,7 @@ func (rt *roundTripper) RoundTrip(request *http.Request) (*http.Response, error)
 			endpoint = newRouteServiceEndpoint()
 			request.Host = routeServiceURL.Host
 			request.URL = routeServiceURL
-			res, err = rt.transport.RoundTrip(request)
+			res, err = rt.timedRoundTrip(request)
 			if err == nil {
 				if res != nil && (res.StatusCode < 200 || res.StatusCode >= 300) {
 					logger.Info(
@@ -188,6 +193,32 @@ func (rt *roundTripper) CancelRequest(request *http.Request) {
 	rt.transport.CancelRequest(request)
 }
 
+func (rt *roundTripper) timedRoundTrip(request *http.Request) (*http.Response, error) {
+	if rt.endpointTimeout <= 0 {
+		return rt.transport.RoundTrip(request)
+	}
+
+	reqCtx, cancel := context.WithTimeout(request.Context(), rt.endpointTimeout)
+	request = request.WithContext(reqCtx)
+	errored := make(chan struct{}, 1)
+
+	go func() {
+		defer cancel()
+		select {
+		case <-reqCtx.Done():
+		case <-errored:
+		}
+
+	}()
+
+	res, err := rt.transport.RoundTrip(request)
+	if err != nil {
+		errored <- struct{}{}
+	}
+
+	return res, err
+}
+
 func (rt *roundTripper) backendRoundTrip(
 	request *http.Request,
 	endpoint *route.Endpoint,
@@ -201,7 +232,7 @@ func (rt *roundTripper) backendRoundTrip(
 	iter.PreRequest(endpoint)
 
 	rt.combinedReporter.CaptureRoutingRequest(endpoint)
-	res, err := rt.transport.RoundTrip(request)
+	res, err := rt.timedRoundTrip(request)
 
 	// decrement connection stats
 	iter.PostRequest(endpoint)
